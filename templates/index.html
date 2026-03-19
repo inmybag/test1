@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Olive Young Daily Rankings</title>
+    <meta name="description" content="올리브영 일간 베스트 상품 랭킹을 제공하는 대시보드입니다.">
+    <link href="https://fonts.googleapis.com/css2?family=Pretendard:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/static/style.css">
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+    <div class="background-elements">
+        <div class="blob blob-1"></div>
+        <div class="blob blob-2"></div>
+        <div class="blob blob-3"></div>
+    </div>
+    
+    <div class="container">
+        <header class="glass-panel">
+            <div class="header-content">
+                <div class="brand-title">
+                    <i data-lucide="sparkles" class="icon"></i>
+                    <h1>Olive Young Best</h1>
+                </div>
+                <div class="date-picker-wrapper">
+                    <i data-lucide="calendar" class="calendar-icon"></i>
+                    <input type="date" id="date-picker" class="glass-input" title="날짜 선택">
+                </div>
+            </div>
+        </header>
+
+        <main>
+            <div id="loading" class="loading-state">
+                <i data-lucide="loader-2" class="spinner"></i>
+                <p>데이터를 불러오는 중입니다...</p>
+            </div>
+            
+            <div id="error" class="error-state hidden">
+                <i data-lucide="alert-circle"></i>
+                <p id="error-message">데이터를 불러오는데 실패했습니다.</p>
+            </div>
+            
+            <div id="no-data" class="no-data-state hidden">
+                <i data-lucide="inbox"></i>
+                <p>해당 날짜의 데이터가 없습니다.</p>
+            </div>
+
+            <div class="ranking-grid" id="ranking-container">
+                <!-- Items will be injected here via JS -->
+            </div>
+        </main>
+    </div>
+
+    <!-- Chart Modal -->
+    <div id="chart-modal" class="modal-overlay hidden">
+        <div class="modal-content glass-panel">
+            <button id="close-modal" class="close-btn" aria-label="닫기">
+                <i data-lucide="x"></i>
+            </button>
+            <h2 id="modal-title" class="product-title modal-title">제품명</h2>
+            <div class="chart-container">
+                <canvas id="ranking-chart"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <script src="/static/script.js"></script>
+    <script>
+        lucide.createIcons();
+    </script>
+</body>
+</html>
