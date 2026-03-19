@@ -22,3 +22,11 @@ daily_rankings.db
 test_*.py
 test.html
 output.html
+node_modules
+.next
+build
+dist
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local

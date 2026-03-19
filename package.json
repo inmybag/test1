@@ -1,0 +1,28 @@
+{
+  "name": "oliveyoung-dashboard-next",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint"
+  },
+  "dependencies": {
+    "@vercel/postgres": "^0.10.0",
+    "axios": "^1.6.0",
+    "chart.js": "^4.4.1",
+    "cheerio": "^1.0.0-rc.12",
+    "clsx": "^2.0.0",
+    "lucide-react": "^0.292.0",
+    "next": "latest",
+    "react": "latest",
+    "react-chartjs-2": "^5.2.0",
+    "react-dom": "latest",
+    "tailwind-merge": "^2.0.0"
+  },
+  "devDependencies": {
+    "eslint": "latest",
+    "eslint-config-next": "latest"
+  }
+}
