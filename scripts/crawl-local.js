@@ -1,0 +1,90 @@
+// 로컬 실행 전용 크롤러 (내 컴퓨터에서 실행)
+// 실행 전: export POSTGRES_URL='복사한 URL' 설정 필요
+
+const axios = require('axios');
+const cheerio = require('cheerio');
+const { createPool } = require('@vercel/postgres');
+
+// Vercel Postgres 연결 설정
+const pool = createPool({
+  connectionString: process.env.POSTGRES_URL
+});
+
+async function fetchOliveYoungRankings() {
+  const url = "https://www.oliveyoung.co.kr/store/main/getBestList.do?t_page=%ED%99%88&t_click=GNB&t_gnb_type=%EB%9E%AD%ED%82%B9&t_swiping_type=N";
+  
+  try {
+    console.log('Fetching Olive Young rankings...');
+    const { data } = await axios.get(url, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36'
+      }
+    });
+    
+    const $ = cheerio.load(data);
+    const rankings = [];
+    
+    $('div.prd_info').each((idx, elem) => {
+      const rank = idx + 1;
+      const title = $(elem).find('p.tx_name').text().trim();
+      const brand = $(elem).find('span.tx_brand, p.tx_brand').text().trim();
+      const price = $(elem).find('span.tx_cur > span.tx_num, span.tx_cur').text().trim();
+      
+      const img = $(elem).find('img');
+      const imageUrl = img.attr('data-original') || img.attr('src') || '';
+      
+      if (title) {
+        rankings.push({ rank, title, brand, price, imageUrl });
+      }
+    });
+    
+    console.log(`Successfully crawled ${rankings.length} items.`);
+    return rankings;
+  } catch (error) {
+    console.error('Error fetching rankings:', error.message);
+    return [];
+  }
+}
+
+async function saveToDb(dateStr, rankings) {
+  const client = await pool.connect();
+  try {
+    console.log(`Saving ${rankings.length} rankings to Vercel DB for ${dateStr}...`);
+    for (const item of rankings) {
+      await client.sql`
+        INSERT INTO rankings (date_str, rank, title, brand, price, image_url)
+        VALUES (${dateStr}, ${item.rank}, ${item.title}, ${item.brand}, ${item.price}, ${item.imageUrl})
+        ON CONFLICT (date_str, rank) 
+        DO UPDATE SET 
+          title = EXCLUDED.title,
+          brand = EXCLUDED.brand,
+          price = EXCLUDED.price,
+          image_url = EXCLUDED.image_url;
+      `;
+    }
+    console.log('Data saved successfully!');
+  } catch (error) {
+    console.error('Database save error:', error.message);
+  } finally {
+    client.release();
+  }
+}
+
+async function main() {
+  if (!process.env.POSTGRES_URL) {
+    console.error('Error: POSTGRES_URL environment variable is not set.');
+    process.exit(1);
+  }
+
+  const todayStr = new Date().toISOString().slice(0, 10).replace(/-/g, '');
+  const rankings = await fetchOliveYoungRankings();
+  
+  if (rankings.length > 0) {
+    await saveToDb(todayStr, rankings);
+  }
+  
+  console.log('Crawler script finished.');
+  process.exit(0);
+}
+
+main();
