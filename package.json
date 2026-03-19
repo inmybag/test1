@@ -9,6 +9,7 @@
     "lint": "next lint"
   },
   "dependencies": {
+    "@sparticuz/chromium": "^143.0.4",
     "@vercel/postgres": "^0.10.0",
     "axios": "^1.6.0",
     "chart.js": "^4.4.1",
@@ -16,6 +17,7 @@
     "clsx": "^2.0.0",
     "lucide-react": "^0.292.0",
     "next": "latest",
+    "puppeteer-core": "^24.39.1",
     "react": "latest",
     "react-chartjs-2": "^5.2.0",
     "react-dom": "latest",

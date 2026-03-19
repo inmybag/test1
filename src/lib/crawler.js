@@ -1,36 +1,35 @@
 import * as cheerio from 'cheerio';
+import puppeteer from 'puppeteer-core';
+import chromium from '@sparticuz/chromium';
 
 export async function fetchOliveYoungRankings() {
   const url = "https://www.oliveyoung.co.kr/store/main/getBestList.do?t_page=%ED%99%88&t_click=GNB&t_gnb_type=%EB%9E%AD%ED%82%B9&t_swiping_type=N";
   
+  let browser = null;
   try {
-    const response = await fetch(url, {
-      method: 'GET',
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
-        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
-        'Accept-Language': 'ko-KR,ko;q=0.9,en-US;q=0.8,en;q=0.7',
-        'Accept-Encoding': 'gzip, deflate, br',
-        'Referer': 'https://www.oliveyoung.co.kr/',
-        'Sec-Ch-Ua': '"Chromium";v="122", "Not(A:Brand";v="24", "Google Chrome";v="122"',
-        'Sec-Ch-Ua-Mobile': '?0',
-        'Sec-Ch-Ua-Platform': '"Windows"',
-        'Sec-Fetch-Dest': 'document',
-        'Sec-Fetch-Mode': 'navigate',
-        'Sec-Fetch-Site': 'same-origin',
-        'Sec-Fetch-User': '?1',
-        'Upgrade-Insecure-Requests': '1'
-      },
-      next: { revalidate: 0 } // 캐시 무시 (항상 새로운 데이터 요청)
+    console.log('Starting Puppeteer crawl...');
+    
+    // Vercel 환경과 로컬 환경을 구분하여 실행 경로 설정
+    const isLocal = process.env.NODE_ENV === 'development' || !process.env.VERCEL;
+    
+    browser = await puppeteer.launch({
+      args: chromium.args,
+      defaultViewport: chromium.defaultViewport,
+      executablePath: await chromium.executablePath(),
+      headless: chromium.headless,
+      ignoreHTTPSErrors: true,
     });
 
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
-    }
-
-    const data = await response.text();
+    const page = await browser.newPage();
     
-    const $ = cheerio.load(data);
+    // 실제 브라우저처럼 보이기 위해 User-Agent 설정
+    await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36');
+    
+    console.log('Navigating to Olive Young...');
+    await page.goto(url, { waitUntil: 'networkidle2', timeout: 30000 });
+    
+    const content = await page.content();
+    const $ = cheerio.load(content);
     const rankings = [];
     
     $('div.prd_info').each((idx, elem) => {
@@ -39,7 +38,6 @@ export async function fetchOliveYoungRankings() {
       const brand = $(elem).find('span.tx_brand, p.tx_brand').text().trim();
       const price = $(elem).find('span.tx_cur > span.tx_num, span.tx_cur').text().trim();
       
-      // Handle images - might be in data-original or src
       const img = $(elem).find('img');
       const imageUrl = img.attr('data-original') || img.attr('src') || '';
       
@@ -54,9 +52,15 @@ export async function fetchOliveYoungRankings() {
       }
     });
     
+    console.log(`Successfully crawled ${rankings.length} items.`);
     return rankings;
+
   } catch (error) {
-    console.error('Error fetching rankings:', error);
+    console.error('Puppeteer crawling error:', error);
     return [];
+  } finally {
+    if (browser !== null) {
+      await browser.close();
+    }
   }
 }
