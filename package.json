@@ -9,7 +9,7 @@
     "lint": "next lint"
   },
   "dependencies": {
-    "@sparticuz/chromium": "^143.0.4",
+    "@sparticuz/chromium": "^123.0.1",
     "@vercel/postgres": "^0.10.0",
     "axios": "^1.6.0",
     "chart.js": "^4.4.1",
