@@ -17,10 +17,10 @@ export default function Home() {
   const [history, setHistory] = useState([]);
 
   useEffect(() => {
-    // Set today's date initially
-    const today = new Date();
-    const timezoneOffset = today.getTimezoneOffset() * 60000;
-    const localISOTime = new Date(today - timezoneOffset).toISOString().split('T')[0];
+    // Set today's date initially (KST/Local)
+    const now = new Date();
+    const kstDate = new Date(now.getTime() + (9 * 60 * 60 * 1000)); // UTC+9 for Korea
+    const localISOTime = now.toLocaleDateString('en-CA'); // 'YYYY-MM-DD' format in local time
     setDate(localISOTime);
     fetchRankings(localISOTime.replace(/-/g, ''));
   }, []);
@@ -80,7 +80,7 @@ export default function Home() {
             type="date" 
             value={date} 
             onChange={handleDateChange}
-            max={new Date().toISOString().split('T')[0]}
+            max={new Date().toLocaleDateString('en-CA')}
           />
         </div>
       </header>

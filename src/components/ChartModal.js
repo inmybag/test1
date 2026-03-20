@@ -17,18 +17,36 @@ export default function ChartModal({ title, isOpen, onClose, history }) {
       }
 
       const ctx = chartRef.current.getContext('2d');
-      const labels = history.map(item => {
-        const m = item.dateStr.substring(4, 6);
-        const d = item.dateStr.substring(6, 8);
+      // 최근 30일 날짜 배열 생성 (KST 기준)
+      const now = new Date();
+      const dates = [];
+      for (let i = 29; i >= 0; i--) {
+        const d = new Date(now.getTime() - (i * 24 * 60 * 60 * 1000));
+        // KST 보정 (서버/브라우저 환경에 따라 다를 수 있으나 간단히 YYYYMMDD 변환용)
+        const dateStr = d.toLocaleDateString('en-CA', { timeZone: 'Asia/Seoul' }).replace(/-/g, '');
+        dates.push(dateStr);
+      }
+
+      const labels = dates.map(ds => {
+        const m = ds.substring(4, 6);
+        const d = ds.substring(6, 8);
         return `${m}.${d}`;
       });
 
-      const rankData = history.map(item => item.rank);
-      const priceData = history.map(item => {
-        if (item.price) {
+      // 데이터를 날짜별로 매핑 (Map 사용으로 성능 최적화)
+      const historyMap = new Map(history.map(item => [item.dateStr, item]));
+
+      const rankData = dates.map(ds => {
+        const item = historyMap.get(ds);
+        return item ? item.rank : null;
+      });
+
+      const priceData = dates.map(ds => {
+        const item = historyMap.get(ds);
+        if (item && item.price) {
           return parseInt(item.price.toString().replace(/,/g, ''), 10) || 0;
         }
-        return 0;
+        return null; // 데이터 없는 날은 null
       });
 
       const gradientRank = ctx.createLinearGradient(0, 0, 0, 400);
@@ -54,6 +72,7 @@ export default function ChartModal({ title, isOpen, onClose, history }) {
               fill: true,
               tension: 0.3,
               pointRadius: 4,
+              spanGaps: true, // 데이터 끊김 현상 보완 (취향에 따라 false 설정 가능)
             },
             {
               label: '가격',
@@ -65,6 +84,7 @@ export default function ChartModal({ title, isOpen, onClose, history }) {
               fill: true,
               tension: 0.3,
               pointRadius: 4,
+              spanGaps: true,
             }
           ]
         },

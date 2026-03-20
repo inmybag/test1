@@ -14,8 +14,8 @@ export async function GET(request) {
   // Try to get from DB
   let rankings = await getRankings(dateStr);
   
-  // If not found, crawl (only for today)
-  const todayStr = new Date().toISOString().slice(0, 10).replace(/-/g, '');
+  // If not found, crawl (only for today in KST)
+  const todayStr = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Seoul' }).replace(/-/g, '');
   
   if (rankings.length === 0 && dateStr === todayStr) {
     console.log(`Crawl needed for ${dateStr}...`);

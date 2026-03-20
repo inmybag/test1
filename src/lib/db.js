@@ -86,7 +86,7 @@ export async function getRankingHistory(title, dateStr, days = 30) {
     const { rows } = await sql`
       SELECT date_str as "dateStr", rank, price 
       FROM rankings 
-      WHERE title = ${title} AND date_str <= ${dateStr}
+      WHERE title = ${title}
       ORDER BY date_str DESC 
       LIMIT ${days};
     `;
