@@ -1,4 +1,5 @@
 import '../styles/globals.css';
+import Navbar from '@/components/Navbar';
 
 export const metadata = {
   title: '올리브영 랭킹 대시보드 (Next.js)',
@@ -13,6 +14,7 @@ export default function RootLayout({ children }) {
           <div className="blob blob-1"></div>
           <div className="blob blob-2"></div>
         </div>
+        <Navbar />
         {children}
       </body>
     </html>

@@ -10,16 +10,29 @@ export default function ProductCard({ product, onViewChart }) {
     <div className="product-card">
       <div className="rank-badge">{product.rank}</div>
       <div className="image-container">
-        <img 
-          src={product.imageUrl} 
-          alt={product.title} 
-          className="product-image"
-          onError={(e) => { e.target.src = 'https://via.placeholder.com/400x400?text=No+Image'; }}
-        />
+        <a 
+          href={product.productId ? `https://www.oliveyoung.co.kr/store/goods/getGoodsDetail.do?goodsNo=${product.productId}` : '#'} 
+          target="_blank" 
+          rel="noopener noreferrer"
+        >
+          <img 
+            src={product.imageUrl} 
+            alt={product.title} 
+            className="product-image"
+            onError={(e) => { e.target.src = 'https://via.placeholder.com/400x400?text=No+Image'; }}
+          />
+        </a>
       </div>
       <div className="product-info">
         <div className="brand-name">{product.brand}</div>
-        <h3 className="product-title">{product.title}</h3>
+        <a 
+          href={product.productId ? `https://www.oliveyoung.co.kr/store/goods/getGoodsDetail.do?goodsNo=${product.productId}` : '#'} 
+          target="_blank" 
+          rel="noopener noreferrer"
+          className="product-link"
+        >
+          <h3 className="product-title">{product.title}</h3>
+        </a>
         <div className="price-container">
           <span className="price-number">{formatPrice(product.price)}</span>
           <span className="price-currency">원</span>

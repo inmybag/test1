@@ -15,10 +15,15 @@ export async function initDb() {
         brand TEXT,
         price TEXT,
         image_url TEXT,
+        product_id TEXT,
         UNIQUE(date_str, rank)
       );
     `;
-    console.log('Database initialized successfully.');
+    // Add product_id column if it doesn't exist
+    await sql`
+      ALTER TABLE rankings ADD COLUMN IF NOT EXISTS product_id TEXT;
+    `;
+    console.log('Database initialized and migrated successfully.');
   } catch (error) {
     console.error('Failed to initialize database:', error);
   }
@@ -37,14 +42,15 @@ export async function saveRankings(dateStr, rankings) {
   try {
     for (const item of rankings) {
       await sql`
-        INSERT INTO rankings (date_str, rank, title, brand, price, image_url)
-        VALUES (${dateStr}, ${item.rank}, ${item.title}, ${item.brand}, ${item.price}, ${item.imageUrl})
+        INSERT INTO rankings (date_str, rank, title, brand, price, image_url, product_id)
+        VALUES (${dateStr}, ${item.rank}, ${item.title}, ${item.brand}, ${item.price}, ${item.imageUrl}, ${item.productId})
         ON CONFLICT (date_str, rank) 
         DO UPDATE SET 
           title = EXCLUDED.title,
           brand = EXCLUDED.brand,
           price = EXCLUDED.price,
-          image_url = EXCLUDED.image_url;
+          image_url = EXCLUDED.image_url,
+          product_id = EXCLUDED.product_id;
       `;
     }
     return true;
@@ -61,7 +67,7 @@ export async function getRankings(dateStr) {
 
   try {
     const { rows } = await sql`
-      SELECT rank, title, brand, price, image_url as "imageUrl"
+      SELECT rank, title, brand, price, image_url as "imageUrl", product_id as "productId"
       FROM rankings 
       WHERE date_str = ${dateStr} 
       ORDER BY rank ASC;

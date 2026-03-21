@@ -41,15 +41,29 @@ async function fetchOliveYoungRankings() {
     
     $('div.prd_info').each((idx, elem) => {
       const rank = idx + 1;
-      const title = $(elem).find('p.tx_name').text().trim();
+      const titleElem = $(elem).find('p.tx_name');
+      const title = titleElem.text().trim();
       const brand = $(elem).find('span.tx_brand, p.tx_brand').text().trim();
       const price = $(elem).find('span.tx_cur > span.tx_num, span.tx_cur').text().trim();
       
       const img = $(elem).find('img');
       const imageUrl = img.attr('data-original') || img.attr('src') || '';
       
+      // Extract goodsNo from the link attribute 'data-ref-goodsno' or from parent <a>
+      const parentLi = $(elem).closest('li');
+      let productId = parentLi.find('div.prd_name a').attr('data-ref-goodsno') || 
+                      $(elem).find('a').attr('data-ref-goodsno');
+
+      // If not found in data attribute, try to find it in the URL if it's a direct link
+      if (!productId) {
+        const href = parentLi.find('div.prd_name a').attr('href') || $(elem).find('a').attr('href');
+        if (href && href.includes('goodsNo=')) {
+          productId = href.split('goodsNo=')[1].split('&')[0];
+        }
+      }
+      
       if (title) {
-        rankings.push({ rank, title, brand, price, imageUrl });
+        rankings.push({ rank, title, brand, price, imageUrl, productId });
       }
     });
     
@@ -67,14 +81,15 @@ async function saveToDb(dateStr, rankings) {
     console.log(`Saving ${rankings.length} rankings to Vercel DB for ${dateStr}...`);
     for (const item of rankings) {
       await client.sql`
-        INSERT INTO rankings (date_str, rank, title, brand, price, image_url)
-        VALUES (${dateStr}, ${item.rank}, ${item.title}, ${item.brand}, ${item.price}, ${item.imageUrl})
+        INSERT INTO rankings (date_str, rank, title, brand, price, image_url, product_id)
+        VALUES (${dateStr}, ${item.rank}, ${item.title}, ${item.brand}, ${item.price}, ${item.imageUrl}, ${item.productId})
         ON CONFLICT (date_str, rank) 
         DO UPDATE SET 
           title = EXCLUDED.title,
           brand = EXCLUDED.brand,
           price = EXCLUDED.price,
-          image_url = EXCLUDED.image_url;
+          image_url = EXCLUDED.image_url,
+          product_id = EXCLUDED.product_id;
       `;
     }
     console.log('Data saved successfully!');
