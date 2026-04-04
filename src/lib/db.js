@@ -212,3 +212,54 @@ export async function getVideoAnalyses(dateStr, category = null) {
     return [];
   }
 }
+
+export async function getPagedVideoAnalyses(category = null, page = 1, limit = 12) {
+  const offset = (page - 1) * limit;
+
+  if (!isProd) {
+    let results = global.analysisDb || [];
+    if (category) {
+      results = results.filter(item => item.category === category);
+    }
+    const totalCount = results.length;
+    results.sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0));
+    const pagedResults = results.slice(offset, offset + limit);
+    return { rows: pagedResults, totalCount };
+  }
+
+  try {
+    if (category) {
+      const countRes = await sql`SELECT count(*) FROM video_analyses WHERE category = ${category}`;
+      const count = countRes.rows[0].count;
+      const { rows } = await sql`
+        SELECT 
+          platform, video_id as "videoId", url, title, thumbnail, category, 
+          date_str as "dateStr", analysis_json as "analysisJson",
+          view_count as "viewCount", like_count as "likeCount", 
+          comment_count as "commentCount", description, comments
+        FROM video_analyses 
+        WHERE category = ${category}
+        ORDER BY created_at DESC
+        LIMIT ${limit} OFFSET ${offset};
+      `;
+      return { rows, totalCount: parseInt(count, 10) };
+    } else {
+      const countRes = await sql`SELECT count(*) FROM video_analyses`;
+      const count = countRes.rows[0].count;
+      const { rows } = await sql`
+        SELECT 
+          platform, video_id as "videoId", url, title, thumbnail, category, 
+          date_str as "dateStr", analysis_json as "analysisJson",
+          view_count as "viewCount", like_count as "likeCount", 
+          comment_count as "commentCount", description, comments
+        FROM video_analyses 
+        ORDER BY created_at DESC
+        LIMIT ${limit} OFFSET ${offset};
+      `;
+      return { rows, totalCount: parseInt(count, 10) };
+    }
+  } catch (error) {
+    console.error('Fetch paged video analyses error:', error);
+    return { rows: [], totalCount: 0 };
+  }
+}
