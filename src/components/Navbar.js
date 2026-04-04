@@ -17,7 +17,7 @@ export default function Navbar() {
       <div className="navbar-container">
         <Link href="/" className="nav-logo">
           <span className="logo-dot"></span>
-          OY Rank
+          AI 마케팅
         </Link>
         
         <div className="nav-desktop">

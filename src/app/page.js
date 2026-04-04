@@ -17,12 +17,16 @@ export default function Home() {
   const [history, setHistory] = useState([]);
 
   useEffect(() => {
-    // Set today's date initially (KST/Local)
-    const now = new Date();
-    const kstDate = new Date(now.getTime() + (9 * 60 * 60 * 1000)); // UTC+9 for Korea
-    const localISOTime = now.toLocaleDateString('en-CA'); // 'YYYY-MM-DD' format in local time
-    setDate(localISOTime);
-    fetchRankings(localISOTime.replace(/-/g, ''));
+    // Set today's date initially (KST)
+    const kstDate = new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'Asia/Seoul',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit'
+    }).format(new Date());
+    
+    setDate(kstDate);
+    fetchRankings(kstDate.replace(/-/g, ''));
   }, []);
 
   const fetchRankings = async (dateStr) => {

@@ -7,15 +7,21 @@ cd $PROJECT_DIR
 # 로그 파일 경로
 LOG_FILE="$PROJECT_DIR/scripts/analysis_cron.log"
 
-echo "[$(date)] --- 시작: 데일리 영상 분석 ---" >> $LOG_FILE
+echo "[$(date)] ========================================" >> $LOG_FILE
+echo "[$(date)] --- 시작: 데일리 멀티 플랫폼 숏폼 분석 ---" >> $LOG_FILE
+echo "[$(date)] ========================================" >> $LOG_FILE
 
-# 1단계: 신규 인기 쇼츠 수집 (Python)
-echo "[$(date)] 1단계: 쇼츠 수집 시작..." >> $LOG_FILE
+# 1단계: 플랫폼별 숏폼 수집 (YouTube Shorts / Instagram Reels / TikTok)
+echo "[$(date)] 1단계: 멀티 플랫폼 숏폼 수집 시작 (fetch_shortform.py)..." >> $LOG_FILE
+python3 scripts/fetch_shortform.py >> $LOG_FILE 2>&1
+
+# 2단계: 기존 YouTube 트렌드 수집 (보조)
+echo "[$(date)] 2단계: YouTube 트렌드 보조 수집 시작 (fetch_trending.py)..." >> $LOG_FILE
 python3 scripts/fetch_trending.py >> $LOG_FILE 2>&1
 
-# 2단계: AI 인사이트 분석 (Node.js)
-echo "[$(date)] 2단계: AI 분석 시작..." >> $LOG_FILE
+# 3단계: AI 인사이트 분석 (Node.js)
+echo "[$(date)] 3단계: AI 인사이트 분석 시작 (analyze-videos.js)..." >> $LOG_FILE
 node scripts/analyze-videos.js >> $LOG_FILE 2>&1
 
-echo "[$(date)] --- 종료: 분석 완료 ---" >> $LOG_FILE
+echo "[$(date)] --- 종료: 전체 분석 완료 ---" >> $LOG_FILE
 echo "" >> $LOG_FILE

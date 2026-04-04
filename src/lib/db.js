@@ -36,10 +36,23 @@ export async function initDb() {
         category TEXT NOT NULL,
         date_str TEXT NOT NULL,
         analysis_json JSONB,
+        view_count BIGINT DEFAULT 0,
+        like_count INT DEFAULT 0,
+        comment_count INT DEFAULT 0,
+        description TEXT,
+        comments JSONB DEFAULT '[]',
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         UNIQUE(video_id, date_str)
       );
     `;
+
+    // Ensure all columns exist for video_analyses (Migration)
+    await sql`ALTER TABLE video_analyses ADD COLUMN IF NOT EXISTS view_count BIGINT DEFAULT 0;`;
+    await sql`ALTER TABLE video_analyses ADD COLUMN IF NOT EXISTS like_count INT DEFAULT 0;`;
+    await sql`ALTER TABLE video_analyses ADD COLUMN IF NOT EXISTS comment_count INT DEFAULT 0;`;
+    await sql`ALTER TABLE video_analyses ADD COLUMN IF NOT EXISTS description TEXT;`;
+    await sql`ALTER TABLE video_analyses ADD COLUMN IF NOT EXISTS comments JSONB DEFAULT '[]';`;
+    
     console.log('Database initialized and migrated successfully.');
   } catch (error) {
     console.error('Failed to initialize database:', error);
@@ -131,13 +144,26 @@ export async function saveVideoAnalysis(video) {
 
   try {
     await sql`
-      INSERT INTO video_analyses (platform, video_id, url, title, thumbnail, category, date_str, analysis_json)
-      VALUES (${video.platform}, ${video.video_id}, ${video.url}, ${video.title}, ${video.thumbnail}, ${video.category}, ${video.date_str}, ${JSON.stringify(video.analysis_json)})
+      INSERT INTO video_analyses (
+        platform, video_id, url, title, thumbnail, category, date_str, analysis_json, 
+        view_count, like_count, comment_count, description, comments
+      )
+      VALUES (
+        ${video.platform}, ${video.video_id}, ${video.url}, ${video.title}, ${video.thumbnail}, 
+        ${video.category}, ${video.date_str}, ${JSON.stringify(video.analysis_json)},
+        ${video.view_count || 0}, ${video.like_count || 0}, ${video.comment_count || 0}, 
+        ${video.description || ''}, ${JSON.stringify(video.comments || [])}
+      )
       ON CONFLICT (video_id, date_str) 
       DO UPDATE SET 
         title = EXCLUDED.title,
         thumbnail = EXCLUDED.thumbnail,
-        analysis_json = EXCLUDED.analysis_json;
+        analysis_json = EXCLUDED.analysis_json,
+        view_count = EXCLUDED.view_count,
+        like_count = EXCLUDED.like_count,
+        comment_count = EXCLUDED.comment_count,
+        description = EXCLUDED.description,
+        comments = EXCLUDED.comments;
     `;
     return true;
   } catch (error) {
@@ -156,24 +182,31 @@ export async function getVideoAnalyses(dateStr, category = null) {
   }
 
   try {
-    let query;
     if (category) {
-      query = sql`
-        SELECT platform, video_id as "videoId", url, title, thumbnail, category, date_str as "dateStr", analysis_json as "analysisJson"
+      const { rows } = await sql`
+        SELECT 
+          platform, video_id as "videoId", url, title, thumbnail, category, 
+          date_str as "dateStr", analysis_json as "analysisJson",
+          view_count as "viewCount", like_count as "likeCount", 
+          comment_count as "commentCount", description, comments
         FROM video_analyses 
         WHERE date_str = ${dateStr} AND category = ${category}
         ORDER BY created_at DESC;
       `;
+      return rows;
     } else {
-      query = sql`
-        SELECT platform, video_id as "videoId", url, title, thumbnail, category, date_str as "dateStr", analysis_json as "analysisJson"
+      const { rows } = await sql`
+        SELECT 
+          platform, video_id as "videoId", url, title, thumbnail, category, 
+          date_str as "dateStr", analysis_json as "analysisJson",
+          view_count as "viewCount", like_count as "likeCount", 
+          comment_count as "commentCount", description, comments
         FROM video_analyses 
         WHERE date_str = ${dateStr}
         ORDER BY created_at DESC;
       `;
+      return rows;
     }
-    const { rows } = await query;
-    return rows;
   } catch (error) {
     console.error('Fetch video analyses error:', error);
     return [];
