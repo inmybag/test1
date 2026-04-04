@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Video, Play, BarChart2, Info, ArrowRight, Youtube, Instagram, Music, ExternalLink } from 'lucide-react';
+import { Video, Play, BarChart2, Info, ArrowRight, Youtube, Instagram, Music, ExternalLink, X } from 'lucide-react';
 
 export default function AnalysisPage() {
   const [videos, setVideos] = useState([]);
@@ -30,79 +30,63 @@ export default function AnalysisPage() {
 
   const getPlatformIcon = (platform) => {
     switch (platform?.toLowerCase()) {
-      case 'youtube': return <Youtube size={16} className="text-red-500" />;
-      case 'tiktok': return <Music size={16} className="text-cyan-400" />;
-      case 'instagram': return <Instagram size={16} className="text-pink-500" />;
-      default: return <Video size={16} />;
+      case 'youtube': return <Youtube size={16} color="#ef4444" />;
+      case 'tiktok': return <Music size={16} color="#22d3ee" />;
+      case 'instagram': return <Instagram size={16} color="#ec4899" />;
+      default: return <Video size={16} color="#94a3b8" />;
     }
   };
 
   return (
-    <main className="min-h-screen pt-24 pb-12 px-4 sm:px-6 lg:px-8 bg-[#0a0a0c]">
-      <div className="max-w-7xl mx-auto">
-        <div className="flex flex-col md:flex-row justify-between items-end mb-12 gap-6">
-          <div className="text-left">
-            <h1 className="text-4xl md:text-5xl font-bold text-white mb-4 bg-clip-text text-transparent bg-gradient-to-r from-blue-400 to-purple-600">
-              Daily AI Discovery
-            </h1>
-            <p className="text-gray-400 text-lg">
-              오늘의 뷰티 & 생활용품 트렌드 분석 리포트
-            </p>
+    <main className="analysis-page">
+      <div className="container">
+        <header className="analysis-header">
+          <div className="title-section">
+            <h1 className="gradient-text">Daily AI Discovery</h1>
+            <p className="subtitle">오늘의 뷰티 & 생활용품 트렌드 분석 리포트</p>
           </div>
 
-          <div className="flex bg-white/5 border border-white/10 p-1.5 rounded-2xl backdrop-blur-xl">
+          <nav className="category-nav">
             {['All', 'Beauty', 'Household'].map(cat => (
               <button
                 key={cat}
                 onClick={() => setCategory(cat)}
-                className={`px-8 py-2.5 rounded-xl font-semibold transition-all duration-300 ${
-                  category === cat 
-                  ? 'bg-blue-600 text-white shadow-xl shadow-blue-500/40' 
-                  : 'text-gray-400 hover:text-gray-200 hover:bg-white/5'
-                }`}
+                className={`category-btn ${category === cat ? 'active' : ''}`}
               >
                 {cat === 'All' ? '전체' : cat === 'Beauty' ? '뷰티' : '생활용품'}
               </button>
             ))}
-          </div>
-        </div>
+          </nav>
+        </header>
 
         {loading ? (
-          <div className="flex flex-col items-center justify-center py-32 space-y-4">
-            <div className="w-12 h-12 border-4 border-blue-600/20 border-t-blue-600 rounded-full animate-spin"></div>
-            <div className="text-gray-500 font-medium">인사이트를 추출하고 있습니다...</div>
+          <div className="loader-container">
+            <div className="loader"></div>
+            <p>인사이트를 추출하고 있습니다...</p>
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 mb-12">
+          <div className="analysis-grid">
             {videos.map((video) => (
               <div 
                 key={video.videoId} 
-                className="video-card glass-panel group cursor-pointer"
+                className="analysis-card"
                 onClick={() => setSelectedVideo(video)}
               >
-                <div className="relative aspect-[9/16] rounded-2xl overflow-hidden mb-4 bg-black/40">
-                  <img 
-                    src={video.thumbnail} 
-                    alt={video.title} 
-                    className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
-                  />
-                  <div className="absolute top-4 left-4 flex gap-2">
-                    <div className="bg-black/60 backdrop-blur-md px-3 py-1.5 rounded-full text-[10px] font-bold text-white uppercase tracking-wider border border-white/10">
-                      {video.category}
-                    </div>
-                    <div className="bg-black/60 backdrop-blur-md p-1.5 rounded-full border border-white/10">
-                      {getPlatformIcon(video.platform)}
-                    </div>
+                <div className="thumbnail-wrapper">
+                  <img src={video.thumbnail} alt={video.title} className="thumbnail-img" />
+                  <div className="card-badges">
+                    <span className="category-badge">{video.category}</span>
+                    <span className="platform-icon-wrapper">{getPlatformIcon(video.platform)}</span>
                   </div>
-                  <div className="absolute inset-x-0 bottom-0 p-6 bg-gradient-to-t from-black via-black/40 to-transparent">
-                    <h3 className="text-lg font-bold text-white line-clamp-2 leading-tight mb-2 drop-shadow-lg">
-                      {video.title}
-                    </h3>
-                    <div className="flex items-center justify-between">
-                       <span className="text-xs text-blue-400 font-semibold bg-blue-500/10 px-2 py-0.5 rounded">
-                         Score {video.analysisJson.score}
-                       </span>
-                    </div>
+                  <div className="card-overlay">
+                    <Play fill="white" size={48} />
+                  </div>
+                </div>
+                <div className="card-content">
+                  <h3 className="video-title">{video.title}</h3>
+                  <div className="card-footer">
+                    <span className="score-badge">Score {video.analysisJson.score}</span>
+                    <span className="view-details">인사이트 보기 <ArrowRight size={14} /></span>
                   </div>
                 </div>
               </div>
@@ -111,86 +95,68 @@ export default function AnalysisPage() {
         )}
 
         {selectedVideo && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 md:p-8 bg-black/90 backdrop-blur-md" onClick={() => setSelectedVideo(null)}>
-            <div className="bg-[#0f0f13] max-w-6xl w-full h-full max-h-[90vh] rounded-[2rem] overflow-hidden shadow-2xl border border-white/10 flex flex-col md:flex-row" onClick={e => e.stopPropagation()}>
+          <div className="modal-overlay" onClick={() => setSelectedVideo(null)}>
+            <div className="modal-container" onClick={e => e.stopPropagation()}>
+              <button className="modal-close" onClick={() => setSelectedVideo(null)}><X size={24} /></button>
               
-              <div className="w-full md:w-[60%] bg-black relative flex items-center justify-center">
-                <iframe 
-                  src={selectedVideo.platform === 'youtube' 
-                    ? `https://www.youtube.com/embed/${selectedVideo.videoId}?autoplay=1` 
-                    : selectedVideo.url}
-                  className="w-full h-full"
-                  allow="autoplay; fullscreen"
-                  allowFullScreen
-                ></iframe>
-                <button 
-                  onClick={() => setSelectedVideo(null)}
-                  className="absolute top-6 left-6 w-10 h-10 bg-black/40 hover:bg-black/60 text-white rounded-full flex items-center justify-center backdrop-blur-md border border-white/10 transition-all md:hidden"
-                >
-                  <ArrowRight className="rotate-180" size={20} />
-                </button>
-              </div>
-
-              <div className="w-full md:w-[40%] flex flex-col h-full border-l border-white/10">
-                <div className="p-8 overflow-y-auto custom-scrollbar flex-1">
-                  <div className="flex justify-between items-center mb-8">
-                     <div className="flex items-center gap-3">
-                        {getPlatformIcon(selectedVideo.platform)}
-                        <span className="text-sm text-gray-500 font-bold uppercase tracking-widest">{selectedVideo.platform}</span>
-                     </div>
-                     <div className="w-12 h-12 rounded-2xl bg-blue-600 flex items-center justify-center text-white font-black shadow-lg shadow-blue-500/40">
-                        {selectedVideo.analysisJson.score}
-                     </div>
-                  </div>
-
-                  <h2 className="text-2xl font-bold text-white mb-8 leading-tight">
-                    {selectedVideo.title}
-                  </h2>
-                  
-                  <div className="space-y-8">
-                    <section>
-                      <h4 className="text-[10px] uppercase tracking-[0.2em] text-blue-400 font-black mb-3">HOOK STRATEGY</h4>
-                      <div className="bg-white/5 border border-white/5 p-5 rounded-2xl text-gray-200 leading-relaxed italic">
-                        "{selectedVideo.analysisJson.hook}"
-                      </div>
-                    </section>
-                    
-                    <section>
-                      <h4 className="text-[10px] uppercase tracking-[0.2em] text-purple-400 font-black mb-3">CONTENT ANALYSIS</h4>
-                      <p className="text-gray-400 text-[15px] leading-relaxed">
-                        {selectedVideo.analysisJson.summary}
-                      </p>
-                    </section>
-                    
-                    <section>
-                      <h4 className="text-[10px] uppercase tracking-[0.2em] text-green-400 font-black mb-3">SUCCESS TAKEAWAYS</h4>
-                      <div className="space-y-3">
-                        {selectedVideo.analysisJson.takeaways.map((item, idx) => (
-                          <div key={idx} className="flex items-start gap-3 text-sm text-gray-300 bg-white/5 p-4 rounded-xl border border-white/5">
-                             <div className="mt-1 w-1.5 h-1.5 bg-green-500 rounded-full shadow-[0_0_8px_rgba(34,197,94,0.6)]"></div>
-                             <span>{item}</span>
-                          </div>
-                        ))}
-                      </div>
-                    </section>
+              <div className="modal-flex">
+                <div className="video-section">
+                  <div className="player-wrapper">
+                    <iframe 
+                      src={selectedVideo.platform === 'youtube' 
+                        ? `https://www.youtube.com/embed/${selectedVideo.videoId}?autoplay=1` 
+                        : selectedVideo.url}
+                      allow="autoplay; fullscreen"
+                      allowFullScreen
+                    ></iframe>
                   </div>
                 </div>
 
-                <div className="p-8 bg-black/20 border-t border-white/5">
-                  <a 
-                    href={selectedVideo.url} 
-                    target="_blank" 
-                    rel="noopener noreferrer"
-                    className="flex items-center justify-center gap-2 w-full py-4 bg-white text-black font-bold rounded-2xl hover:bg-gray-200 transition-all mb-4"
-                  >
-                    원본 영상 보기 <ExternalLink size={18} />
-                  </a>
-                  <button 
-                    onClick={() => setSelectedVideo(null)}
-                    className="w-full py-4 bg-white/5 text-gray-400 font-bold rounded-2xl hover:bg-white/10 transition-all border border-white/10"
-                  >
-                    닫기
-                  </button>
+                <div className="insights-section">
+                  <div className="insights-header">
+                    <div className="platform-meta">
+                      {getPlatformIcon(selectedVideo.platform)}
+                      <span>{selectedVideo.platform.toUpperCase()}</span>
+                    </div>
+                    <div className="expert-badge">
+                      <span>Success Score</span>
+                      <strong className="score-num">{selectedVideo.analysisJson.score}</strong>
+                    </div>
+                  </div>
+
+                  <div className="insights-body custom-scrollbar">
+                    <h2 className="modal-title">{selectedVideo.title}</h2>
+                    
+                    <div className="analysis-block">
+                      <div className="block-label blue">HOOK STRATEGY</div>
+                      <blockquote className="hook-text">
+                        "{selectedVideo.analysisJson.hook}"
+                      </blockquote>
+                    </div>
+                    
+                    <div className="analysis-block">
+                      <div className="block-label purple">CONTENT ANALYSIS</div>
+                      <p className="summary-text">{selectedVideo.analysisJson.summary}</p>
+                    </div>
+                    
+                    <div className="analysis-block">
+                      <div className="block-label green">SUCCESS TAKEAWAYS</div>
+                      <div className="takeaways-list">
+                        {selectedVideo.analysisJson.takeaways.map((item, idx) => (
+                          <div key={idx} className="takeaway-item">
+                            <span className="dot"></span>
+                            <span>{item}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="insights-footer">
+                    <a href={selectedVideo.url} target="_blank" rel="noopener noreferrer" className="btn-primary">
+                      원본 영상 보기 <ExternalLink size={18} />
+                    </a>
+                  </div>
                 </div>
               </div>
             </div>
@@ -198,30 +164,325 @@ export default function AnalysisPage() {
         )}
       </div>
 
-      <style jsx global>{`
-        .video-card {
-           transform: translateZ(0);
-           transition: all 0.4s cubic-bezier(0.23, 1, 0.32, 1);
+      <style jsx>{`
+        .analysis-page {
+          min-height: 100vh;
+          padding-top: 8rem;
+          padding-bottom: 4rem;
+          background-color: #0a0a0c;
+          color: #fff;
         }
-        .video-card:hover {
-          transform: translateY(-12px);
+        .container {
+          max-width: 1400px;
+          margin: 0 auto;
+          padding: 0 2rem;
         }
-        .glass-panel {
-          backdrop-blur: 16px;
-          -webkit-backdrop-blur: 16px;
-          background: linear-gradient(180deg, rgba(255,255,255,0.05) 0%, rgba(255,255,255,0.01) 100%);
-          border: 1px solid rgba(255,255,255,0.08);
+        .analysis-header {
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          justify-content: space-between;
+          margin-bottom: 5rem;
+          gap: 2.5rem;
         }
-        .custom-scrollbar::-webkit-scrollbar {
-          width: 4px;
+        @media (min-width: 1024px) {
+          .analysis-header { flex-direction: row; align-items: flex-end; }
         }
-        .custom-scrollbar::-webkit-scrollbar-track {
+        .gradient-text {
+          font-size: 3.5rem;
+          font-weight: 900;
+          margin-bottom: 0.75rem;
+          background: linear-gradient(135deg, #60a5fa 0%, #a855f7 100%);
+          -webkit-background-clip: text;
+          background-clip: text;
+          -webkit-text-fill-color: transparent;
+          letter-spacing: -0.02em;
+        }
+        .subtitle { color: #94a3b8; font-size: 1.25rem; font-weight: 400; }
+        
+        .category-nav {
+          display: flex;
+          background: rgba(255, 255, 255, 0.03);
+          border: 1px solid rgba(255, 255, 255, 0.08);
+          padding: 0.5rem;
+          border-radius: 1.5rem;
+          backdrop-filter: blur(20px);
+        }
+        .category-btn {
+          padding: 0.75rem 2rem;
+          border-radius: 1rem;
+          border: none;
           background: transparent;
+          color: #64748b;
+          font-weight: 700;
+          cursor: pointer;
+          transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
         }
-        .custom-scrollbar::-webkit-scrollbar-thumb {
-          background: rgba(255, 255, 255, 0.1);
-          border-radius: 10px;
+        .category-btn:hover { color: #fff; background: rgba(255,255,255,0.05); }
+        .category-btn.active {
+          background: #2563eb;
+          color: #fff;
+          box-shadow: 0 10px 25px -5px rgba(37, 99, 235, 0.4);
         }
+
+        .analysis-grid {
+          display: grid;
+          grid-template-columns: 1fr;
+          gap: 2.5rem;
+        }
+        @media (min-width: 768px) { .analysis-grid { grid-template-columns: repeat(2, 1fr); } }
+        @media (min-width: 1100px) { .analysis-grid { grid-template-columns: repeat(3, 1fr); } }
+
+        .analysis-card {
+          background: rgba(255, 255, 255, 0.02);
+          border: 1px solid rgba(255, 255, 255, 0.06);
+          border-radius: 2.5rem;
+          overflow: hidden;
+          cursor: pointer;
+          transition: all 0.5s cubic-bezier(0.23, 1, 0.32, 1);
+          position: relative;
+        }
+        .analysis-card:hover {
+          transform: translateY(-16px);
+          background: rgba(255, 255, 255, 0.05);
+          border-color: rgba(255, 255, 255, 0.15);
+          box-shadow: 0 30px 60px -12px rgba(0, 0, 0, 0.5);
+        }
+        
+        .thumbnail-wrapper {
+          position: relative;
+          aspect-ratio: 9/16;
+          overflow: hidden;
+          background: #000;
+        }
+        .thumbnail-img {
+          width: 100%;
+          height: 100%;
+          object-fit: cover;
+          transition: transform 1.2s cubic-bezier(0.23, 1, 0.32, 1);
+          opacity: 0.85;
+        }
+        .analysis-card:hover .thumbnail-img { transform: scale(1.1); opacity: 1; }
+        
+        .card-badges {
+          position: absolute;
+          top: 1.5rem;
+          left: 1.5rem;
+          right: 1.5rem;
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          z-index: 5;
+        }
+        .category-badge {
+          background: rgba(0, 0, 0, 0.5);
+          backdrop-filter: blur(12px);
+          padding: 0.5rem 1.25rem;
+          border-radius: 99rem;
+          font-size: 0.75rem;
+          font-weight: 800;
+          color: #fff;
+          border: 1px solid rgba(255, 255, 255, 0.1);
+          letter-spacing: 0.05em;
+        }
+        .platform-icon-wrapper {
+          background: rgba(0, 0, 0, 0.5);
+          backdrop-filter: blur(12px);
+          padding: 0.6rem;
+          border-radius: 1rem;
+          display: flex;
+          border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .card-overlay {
+          position: absolute;
+          inset: 0;
+          background: radial-gradient(circle, rgba(0, 0, 0, 0) 0%, rgba(0, 0, 0, 0.4) 100%);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          opacity: 0;
+          transition: opacity 0.4s;
+          z-index: 4;
+        }
+        .analysis-card:hover .card-overlay { opacity: 1; }
+
+        .card-content { padding: 2rem; }
+        .video-title {
+          font-size: 1.25rem;
+          font-weight: 800;
+          line-height: 1.4;
+          margin-bottom: 1.5rem;
+          display: -webkit-box;
+          -webkit-line-clamp: 2;
+          -webkit-box-orient: vertical;
+          overflow: hidden;
+          color: #f8fafc;
+        }
+        .card-footer {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+        }
+        .score-badge {
+          color: #2563eb;
+          background: rgba(37, 99, 235, 0.1);
+          padding: 0.4rem 1rem;
+          border-radius: 0.75rem;
+          font-size: 0.85rem;
+          font-weight: 800;
+          border: 1px solid rgba(37, 99, 235, 0.2);
+        }
+        .view-details { font-size: 0.9rem; color: #64748b; font-weight: 600; display: flex; align-items: center; gap: 0.5rem; }
+        .analysis-card:hover .view-details { color: #fff; }
+
+        .modal-overlay {
+          position: fixed;
+          inset: 0;
+          background: rgba(0, 0, 0, 0.95);
+          backdrop-filter: blur(12px);
+          z-index: 3000;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          padding: 1.5rem;
+        }
+        .modal-container {
+          position: relative;
+          width: 100%;
+          max-width: 1300px;
+          height: 100%;
+          max-height: 850px;
+          background: #0a0a0c;
+          border-radius: 3rem;
+          border: 1px solid rgba(255, 255, 255, 0.1);
+          overflow: hidden;
+          display: flex;
+          box-shadow: 0 40px 100px -20px rgba(0, 0, 0, 0.8);
+        }
+        .modal-close {
+          position: absolute;
+          top: 2rem;
+          right: 2rem;
+          background: rgba(255,255,255,0.05);
+          border: 1px solid rgba(255,255,255,0.1);
+          color: #fff;
+          cursor: pointer;
+          z-index: 100;
+          padding: 0.75rem;
+          border-radius: 1.25rem;
+          display: flex;
+          transition: all 0.3s;
+        }
+        .modal-close:hover { background: rgba(255,255,255,0.15); transform: scale(1.1); }
+
+        .modal-flex { display: flex; flex-direction: column; width: 100%; height: 100%; }
+        @media (min-width: 1024px) { .modal-flex { flex-direction: row; } }
+
+        .video-section {
+          flex: 1;
+          background: #000;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          min-height: 40%;
+        }
+        @media (min-width: 1024px) { .video-section { flex: 0 0 60%; min-height: 100%; } }
+
+        .player-wrapper {
+          width: 100%;
+          height: 100%;
+          position: relative;
+        }
+        .player-wrapper iframe {
+          position: absolute;
+          top: 0; left: 0; width: 100%; height: 100%;
+          border: none;
+        }
+
+        .insights-section {
+          width: 100%;
+          background: #0a0a0c;
+          display: flex;
+          flex-direction: column;
+          border-top: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        @media (min-width: 1024px) { .insights-section { width: 40%; border-top: none; border-left: 1px solid rgba(255, 255, 255, 0.1); } }
+
+        .insights-header {
+          padding: 2.5rem;
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+        }
+        .platform-meta { display: flex; align-items: center; gap: 0.75rem; font-size: 0.85rem; font-weight: 900; color: #64748b; letter-spacing: 0.1em; }
+        .expert-badge { display: flex; flex-direction: column; align-items: flex-end; }
+        .expert-badge span { font-size: 0.7rem; color: #475569; font-weight: 800; text-transform: uppercase; margin-bottom: 0.25rem; }
+        .score-num { font-size: 2.5rem; color: #3b82f6; font-weight: 900; line-height: 1; }
+
+        .insights-body {
+          flex: 1;
+          padding: 2.5rem;
+          overflow-y: auto;
+        }
+        .modal-title { font-size: 1.75rem; font-weight: 900; margin-bottom: 3rem; line-height: 1.3; color: #fff; }
+
+        .analysis-block { margin-bottom: 3.5rem; }
+        .block-label { font-size: 0.7rem; font-weight: 900; letter-spacing: 0.2em; margin-bottom: 1.25rem; }
+        .block-label.blue { color: #3b82f6; }
+        .block-label.purple { color: #a855f7; }
+        .block-label.green { color: #22c55e; }
+        
+        .hook-text { 
+          background: rgba(255, 255, 255, 0.02);
+          border: 1px solid rgba(255, 255, 255, 0.05);
+          padding: 1.5rem;
+          border-radius: 1.5rem;
+          font-style: italic;
+          color: #e2e8f0;
+          line-height: 1.6;
+          font-size: 1.1rem;
+          margin: 0;
+        }
+        .summary-text { color: #94a3b8; line-height: 1.8; font-size: 1.05rem; }
+        
+        .takeaways-list { display: flex; flex-direction: column; gap: 1rem; }
+        .takeaway-item { 
+          display: flex; gap: 1.25rem; align-items: flex-start;
+          background: rgba(255, 255, 255, 0.02);
+          padding: 1.25rem;
+          border-radius: 1rem;
+          font-size: 1rem;
+          color: #cbd5e1;
+          border: 1px solid rgba(255, 255, 255, 0.03);
+        }
+        .dot { width: 8px; height: 8px; background: #22c55e; border-radius: 50%; margin-top: 0.45rem; flex-shrink: 0; box-shadow: 0 0 12px #22c55e; }
+
+        .insights-footer { padding: 2.5rem; border-top: 1px solid rgba(255, 255, 255, 0.05); }
+        .btn-primary {
+          display: flex; align-items: center; justify-content: center; gap: 1rem;
+          width: 100%; padding: 1.25rem; border-radius: 1.5rem;
+          background: #fff; color: #000; font-weight: 800; text-decoration: none;
+          transition: all 0.3s;
+          font-size: 1.1rem;
+        }
+        .btn-primary:hover { background: #f1f5f9; transform: scale(1.02); }
+
+        .loader-container { 
+          display: flex; flex-direction: column; align-items: center; justify-content: center;
+          padding: 10rem 0; gap: 2rem; color: #475569;
+        }
+        .loader {
+          width: 64px; height: 64px; border: 5px solid rgba(59, 130, 246, 0.1);
+          border-top: 5px solid #3b82f6; border-radius: 50%; animation: spin 1s linear infinite;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        .custom-scrollbar::-webkit-scrollbar { width: 6px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.05); border-radius: 10px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: rgba(255, 255, 255, 0.1); }
       `}</style>
     </main>
   );
