@@ -10,26 +10,28 @@ export default function AnalysisPage() {
   const [selectedVideo, setSelectedVideo] = useState(null);
   const [hoveredId, setHoveredId] = useState(null);
 
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+
+  useEffect(() => {
+    setPage(1);
+  }, [category]);
+
   useEffect(() => {
     fetchResults();
-  }, [category]);
+  }, [category, page]);
 
   const fetchResults = async () => {
     setLoading(true);
     try {
-      // Use KST fixed date
-      const kstDate = new Intl.DateTimeFormat('en-CA', {
-        timeZone: 'Asia/Seoul',
-        year: 'numeric',
-        month: '2-digit',
-        day: '2-digit'
-      }).format(new Date());
-      
-      const today = kstDate.replace(/-/g, '');
       const catParam = category === 'All' ? '' : `&category=${category}`;
-      const response = await fetch(`/api/analysis/results?date=${today}${catParam}`);
+      const response = await fetch(`/api/analysis/results?page=${page}&limit=12${catParam}`);
       const data = await response.json();
       setVideos(data.results || []);
+      if (data.pagination) {
+        setTotalPages(data.pagination.totalPages || 1);
+      }
+
     } catch (err) {
       console.error(err);
     } finally {
@@ -197,12 +199,43 @@ export default function AnalysisPage() {
             )) : (
               <div className="empty-state">
                 <Info size={48} />
-                <p>오늘의 분석 데이터가 아직 준비되지 않았습니다.</p>
+                <p>해당 카테고리에 분석된 데이터가 아직 준비되지 않았습니다.</p>
                 <button onClick={fetchResults} className="btn-retry">다시 시도</button>
               </div>
             )}
           </div>
         )}
+
+        {!loading && videos.length > 0 && totalPages > 1 && (
+          <div className="pagination">
+            <button 
+              className="page-btn" 
+              onClick={() => { setPage(p => Math.max(1, p - 1)); window.scrollTo({ top: 300, behavior: 'smooth' }); }}
+              disabled={page === 1}
+            >
+              이전
+            </button>
+            <div className="page-numbers">
+              {Array.from({ length: totalPages }, (_, i) => i + 1).map(p => (
+                <button 
+                  key={p} 
+                  className={`page-num ${page === p ? 'active' : ''}`}
+                  onClick={() => { setPage(p); window.scrollTo({ top: 300, behavior: 'smooth' }); }}
+                >
+                  {p}
+                </button>
+              ))}
+            </div>
+            <button 
+              className="page-btn" 
+              onClick={() => { setPage(p => Math.min(totalPages, p + 1)); window.scrollTo({ top: 300, behavior: 'smooth' }); }}
+              disabled={page === totalPages}
+            >
+              다음
+            </button>
+          </div>
+        )}
+
 
         {selectedVideo && (
           <div className="modal-overlay" onClick={() => setSelectedVideo(null)}>
@@ -496,6 +529,59 @@ export default function AnalysisPage() {
         }
         .analysis-card:hover .thumbnail-img { transform: scale(1.15); filter: brightness(1.05); }
         
+        .pagination {
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          gap: 1rem;
+          margin-top: 4rem;
+          padding-bottom: 2rem;
+        }
+        .page-btn {
+          background: rgba(255, 255, 255, 0.05);
+          border: 1px solid rgba(255, 255, 255, 0.1);
+          color: #fff;
+          padding: 0.5rem 1.2rem;
+          border-radius: 0.5rem;
+          cursor: pointer;
+          font-weight: 500;
+          transition: all 0.2s;
+        }
+        .page-btn:hover:not(:disabled) {
+          background: rgba(59, 130, 246, 0.2);
+          border-color: rgba(59, 130, 246, 0.5);
+        }
+        .page-btn:disabled {
+          opacity: 0.3;
+          cursor: not-allowed;
+        }
+        .page-numbers {
+          display: flex;
+          gap: 0.5rem;
+        }
+        .page-num {
+          background: transparent;
+          border: none;
+          color: #94a3b8;
+          width: 2.5rem;
+          height: 2.5rem;
+          border-radius: 0.5rem;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          cursor: pointer;
+          font-weight: 600;
+          transition: all 0.2s;
+        }
+        .page-num:hover {
+          color: #fff;
+          background: rgba(255, 255, 255, 0.1);
+        }
+        .page-num.active {
+          background: #3b82f6;
+          color: #fff;
+        }
+
         .play-overlay {
           position: absolute;
           inset: 0;
