@@ -10,17 +10,17 @@ load_dotenv('.env.local')
 
 POSTGRES_URL = os.getenv('POSTGRES_URL')
 
-def get_trending_shorts(keyword, count=5):
-    print(f"Searching for {keyword}...")
-    # Using yt-dlp to search for shorts
-    # --flat-playlist: only get metadata without downloading
-    # --print: print custom metadata
-    # --max-downloads: limit results
+def get_trending_shorts(keyword, platform='youtube', count=5):
+    print(f"Searching for {keyword} on {platform}...")
+    
+    # Platform specific search query
+    search_keyword = f"{platform} {keyword} shorts" if platform != 'youtube' else f"{keyword} shorts"
+    
     cmd = [
         'python3', '-m', 'yt_dlp',
-        f'ytsearch{count * 2}:{keyword} shorts',
+        f'ytsearch{count * 2}:{search_keyword}',
         '--flat-playlist',
-        '--print', '%(id)s|%(title)s|%(thumbnails.-1.url)s',
+        '--print', '%(id)s|%(title)s|%(thumbnails.-1.url)s|%(webpage_url)s',
         '--max-downloads', str(count)
     ]
     
@@ -31,14 +31,25 @@ def get_trending_shorts(keyword, count=5):
         for line in lines:
             if '|' in line:
                 parts = line.split('|')
-                if len(parts) >= 3:
+                if len(parts) >= 4:
                     vid = parts[0]
-                    thumb = parts[-1]
-                    title = "|".join(parts[1:-1])
+                    title = "|".join(parts[1:-2])
+                    thumb = parts[-2]
+                    url = parts[-1]
+                    
+                    # Detect platform more accurately
+                    detected_platform = 'youtube'
+                    if 'tiktok' in title.lower() or 'tiktok' in url.lower():
+                        detected_platform = 'tiktok'
+                    elif 'reels' in title.lower() or 'instagram' in url.lower():
+                        detected_platform = 'instagram'
+                    else:
+                        detected_platform = platform # Fallback to search intent
+                    
                     videos.append({
-                        'platform': 'youtube',
+                        'platform': detected_platform,
                         'video_id': vid,
-                        'url': f'https://www.youtube.com/shorts/{vid}',
+                        'url': url,
                         'title': title,
                         'thumbnail': thumb,
                         'category': keyword,
@@ -46,7 +57,7 @@ def get_trending_shorts(keyword, count=5):
                     })
         return videos[:count]
     except Exception as e:
-        print(f"Error fetching {keyword}: {e}")
+        print(f"Error fetching {keyword} on {platform}: {e}")
         return []
 
 def save_to_db(videos):
@@ -81,7 +92,14 @@ def save_to_db(videos):
         print(f"DB Error: {e}")
 
 if __name__ == "__main__":
-    beauty_videos = get_trending_shorts("Beauty", 5)
-    household_videos = get_trending_shorts("Household", 5)
-    all_videos = beauty_videos + household_videos
+    # Fetch from different platforms
+    platforms = ['youtube', 'tiktok', 'instagram']
+    categories = ['Beauty', 'Household']
+    
+    all_videos = []
+    for platform in platforms:
+        for cat in categories:
+            videos = get_trending_shorts(cat, platform, 2) # Fetch 2 per platform/category
+            all_videos.extend(videos)
+            
     save_to_db(all_videos)
