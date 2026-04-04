@@ -52,12 +52,12 @@ export default function Home() {
     }
   };
 
-  const handleViewChart = async (title) => {
+  const handleViewChart = async (title, productId) => {
     setSelectedTitle(title);
     setModalOpen(true);
     try {
       const dateStr = date.replace(/-/g, '');
-      const response = await fetch(`/api/history?title=${encodeURIComponent(title)}&date=${dateStr}`);
+      const response = await fetch(`/api/history?productId=${productId}&date=${dateStr}&title=${encodeURIComponent(title)}`);
       const result = await response.json();
       setHistory(result.history || []);
     } catch (err) {

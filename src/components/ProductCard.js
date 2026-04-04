@@ -39,7 +39,7 @@ export default function ProductCard({ product, onViewChart }) {
         </div>
         <button 
           className="view-chart-btn" 
-          onClick={() => onViewChart(product.title)}
+          onClick={() => onViewChart(product.title, product.productId)}
         >
           <LineChart size={18} /> 차트 보기
         </button>

@@ -6,12 +6,13 @@ export async function GET(request) {
   const { searchParams } = new URL(request.url);
   const title = searchParams.get('title');
   const dateStr = searchParams.get('date');
+  const productId = searchParams.get('productId');
   
-  if (!title || !dateStr) {
-    return NextResponse.json({ error: 'Title and date are required' }, { status: 400 });
+  if (!productId || !dateStr) {
+    return NextResponse.json({ error: 'ProductId and date are required' }, { status: 400 });
   }
   
-  const history = await getRankingHistory(title, dateStr);
+  const history = await getRankingHistory(productId, dateStr, 30, title);
   
   return NextResponse.json({
     title,

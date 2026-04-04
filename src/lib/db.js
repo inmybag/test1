@@ -79,10 +79,10 @@ export async function getRankings(dateStr) {
   }
 }
 
-export async function getRankingHistory(title, dateStr, days = 30) {
+export async function getRankingHistory(productId, dateStr, days = 30, title = '') {
   if (!isProd) {
     return (global.mockDb || [])
-      .filter(item => item.title === title && item.dateStr <= dateStr)
+      .filter(item => (productId ? item.productId === productId : item.title === title) && item.dateStr <= dateStr)
       .sort((a, b) => b.dateStr.localeCompare(a.dateStr))
       .slice(0, days)
       .reverse();
@@ -92,7 +92,7 @@ export async function getRankingHistory(title, dateStr, days = 30) {
     const { rows } = await sql`
       SELECT date_str as "dateStr", rank, price 
       FROM rankings 
-      WHERE title = ${title}
+      WHERE product_id = ${productId}
       ORDER BY date_str DESC 
       LIMIT ${days};
     `;

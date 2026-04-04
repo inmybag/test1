@@ -9,7 +9,7 @@ export default function Navbar() {
 
   const menuItems = [
     { title: '올리브영 랭킹', href: '/' },
-    // 추후 메뉴 추가 시 여기에 객체 추가
+    { title: '영상분석', href: '/analysis' },
   ];
 
   return (
