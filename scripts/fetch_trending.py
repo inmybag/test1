@@ -20,7 +20,7 @@ def get_trending_shorts(keyword, platform='youtube', count=5):
         'python3', '-m', 'yt_dlp',
         f'ytsearch{count * 2}:{search_keyword}',
         '--flat-playlist',
-        '--print', '%(id)s|%(title)s|%(thumbnails.-1.url)s|%(webpage_url)s',
+        '--print', '%(id)s|%(title)s|%(thumbnails.-1.url)s|%(webpage_url)s|%(view_count)s|%(like_count)s|%(comment_count)s',
         '--max-downloads', str(count)
     ]
     
@@ -31,11 +31,14 @@ def get_trending_shorts(keyword, platform='youtube', count=5):
         for line in lines:
             if '|' in line:
                 parts = line.split('|')
-                if len(parts) >= 4:
+                if len(parts) >= 7:
                     vid = parts[0]
-                    title = "|".join(parts[1:-2])
-                    thumb = parts[-2]
-                    url = parts[-1]
+                    title = "|".join(parts[1:-5])
+                    thumb = parts[-5]
+                    url = parts[-4]
+                    views = int(parts[-3]) if parts[-3] != 'NA' and parts[-3] != 'None' else 0
+                    likes = int(parts[-2]) if parts[-2] != 'NA' and parts[-2] != 'None' else 0
+                    comments = int(parts[-1]) if parts[-1] != 'NA' and parts[-1] != 'None' else 0
                     
                     # Detect platform more accurately
                     detected_platform = 'youtube'
@@ -53,7 +56,10 @@ def get_trending_shorts(keyword, platform='youtube', count=5):
                         'title': title,
                         'thumbnail': thumb,
                         'category': keyword,
-                        'date_str': datetime.now().strftime('%Y%m%d')
+                        'date_str': datetime.now().strftime('%Y%m%d'),
+                        'view_count': views,
+                        'like_count': likes,
+                        'comment_count': comments
                     })
         return videos[:count]
     except Exception as e:
@@ -79,10 +85,18 @@ def save_to_db(videos):
             }
             
             cur.execute("""
-                INSERT INTO video_analyses (platform, video_id, url, title, thumbnail, category, date_str, analysis_json)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
-                ON CONFLICT (video_id, date_str) DO NOTHING;
-            """, (v['platform'], v['video_id'], v['url'], v['title'], v['thumbnail'], v['category'], v['date_str'], json.dumps(analysis)))
+                INSERT INTO video_analyses (platform, video_id, url, title, thumbnail, category, date_str, analysis_json, view_count, like_count, comment_count)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                ON CONFLICT (video_id, date_str) 
+                DO UPDATE SET 
+                    view_count = EXCLUDED.view_count, 
+                    like_count = EXCLUDED.like_count, 
+                    comment_count = EXCLUDED.comment_count;
+            """, (
+                v['platform'], v['video_id'], v['url'], v['title'], v['thumbnail'], 
+                v['category'], v['date_str'], json.dumps(analysis),
+                v['view_count'], v['like_count'], v['comment_count']
+            ))
             
         conn.commit()
         cur.close()
@@ -105,13 +119,11 @@ if __name__ == "__main__":
         {"en": "Numbuzin", "ko": "넘버즈인"}
     ]
     
-    platforms = ['youtube', 'tiktok', 'instagram']
     all_videos = []
     
     # 1. 한국 시장(KR) 수집: 한글 키워드 사용
     print("Starting KR Market Collection...")
     for brand in TARGET_BRANDS:
-        # 각 브랜드별로 플랫폼을 순회하며 수집
         videos = get_trending_shorts(brand['ko'], 'youtube', 1) 
         all_videos.extend(videos)
 

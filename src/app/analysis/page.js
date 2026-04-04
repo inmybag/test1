@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Video, Play, BarChart2, Info, ArrowRight, Youtube, Instagram, Music, ExternalLink, X } from 'lucide-react';
+import { Video, Play, BarChart2, Info, ArrowRight, Youtube, Instagram, Music, ExternalLink, X, Eye, Heart, MessageCircle, Lightbulb } from 'lucide-react';
 
 export default function AnalysisPage() {
   const [videos, setVideos] = useState([]);
@@ -37,13 +37,29 @@ export default function AnalysisPage() {
     }
   };
 
+  const getEmbedUrl = (video) => {
+    if (!video) return '';
+    const { platform, video_id, url } = video;
+    if (platform === 'youtube') return `https://www.youtube.com/embed/${video_id}?autoplay=1`;
+    if (platform === 'tiktok') return `https://www.tiktok.com/embed/v2/${video_id}`;
+    if (platform === 'instagram') return `https://www.instagram.com/reel/${video_id}/embed`;
+    return url;
+  };
+
+  const formatCount = (num) => {
+    if (!num) return '0';
+    if (num >= 1000000) return (num / 1000000).toFixed(1) + 'M';
+    if (num >= 1000) return (num / 1000).toFixed(1) + 'K';
+    return num.toLocaleString();
+  };
+
   return (
     <main className="analysis-page">
       <div className="container">
         <header className="analysis-header">
           <div className="title-section">
-            <h1 className="gradient-text">Daily AI Discovery</h1>
-            <p className="subtitle">오늘의 뷰티 & 생활용품 트렌드 분석 리포트</p>
+            <h1 className="gradient-text">Performance Analysis</h1>
+            <p className="subtitle">엔게이지먼트 기반 트렌드 분석 및 브랜드 기획 추천</p>
           </div>
 
           <nav className="category-nav">
@@ -62,7 +78,7 @@ export default function AnalysisPage() {
         {loading ? (
           <div className="loader-container">
             <div className="loader"></div>
-            <p>인사이트를 추출하고 있습니다...</p>
+            <p>공적 성과 데이터를 분석 중입니다...</p>
           </div>
         ) : (
           <div className="analysis-grid">
@@ -78,15 +94,19 @@ export default function AnalysisPage() {
                     <span className="category-badge">{video.category}</span>
                     <span className="platform-icon-wrapper">{getPlatformIcon(video.platform)}</span>
                   </div>
-                  <div className="card-overlay">
-                    <Play fill="white" size={48} />
+                  <div className="metrics-overlay">
+                    <div className="metric-item"><Eye size={12} /> {formatCount(video.viewCount)}</div>
+                    <div className="metric-item"><Heart size={12} /> {formatCount(video.likeCount)}</div>
                   </div>
                 </div>
                 <div className="card-content">
                   <h3 className="video-title">{video.title}</h3>
                   <div className="card-footer">
-                    <span className="score-badge">Score {video.analysisJson.score}</span>
-                    <span className="view-details">인사이트 보기 <ArrowRight size={14} /></span>
+                    <div className="performance-tag">
+                      <span className="score-label">성능 지수</span>
+                      <span className="score-value">{video.analysisJson.score}</span>
+                    </div>
+                    <span className="view-details">기획안 보기 <ArrowRight size={14} /></span>
                   </div>
                 </div>
               </div>
@@ -103,11 +123,10 @@ export default function AnalysisPage() {
                 <div className="video-section">
                   <div className="player-wrapper">
                     <iframe 
-                      src={selectedVideo.platform === 'youtube' 
-                        ? `https://www.youtube.com/embed/${selectedVideo.videoId}?autoplay=1` 
-                        : selectedVideo.url}
+                      src={getEmbedUrl(selectedVideo)}
                       allow="autoplay; fullscreen"
                       allowFullScreen
+                      className="embed-frame"
                     ></iframe>
                   </div>
                 </div>
@@ -116,11 +135,18 @@ export default function AnalysisPage() {
                   <div className="insights-header">
                     <div className="platform-meta">
                       {getPlatformIcon(selectedVideo.platform)}
-                      <span>{selectedVideo.platform.toUpperCase()}</span>
+                      <span>{selectedVideo.platform.toUpperCase()} PERFORMANCE</span>
                     </div>
-                    <div className="expert-badge">
-                      <span>Success Score</span>
-                      <strong className="score-num">{selectedVideo.analysisJson.score}</strong>
+                    <div className="engagement-stats">
+                      <div className="stat">
+                        <Eye size={14} /> <span>{formatCount(selectedVideo.viewCount)}</span>
+                      </div>
+                      <div className="stat">
+                        <Heart size={14} /> <span>{formatCount(selectedVideo.likeCount)}</span>
+                      </div>
+                      <div className="stat">
+                        <MessageCircle size={14} /> <span>{formatCount(selectedVideo.commentCount)}</span>
+                      </div>
                     </div>
                   </div>
 
@@ -128,19 +154,27 @@ export default function AnalysisPage() {
                     <h2 className="modal-title">{selectedVideo.title}</h2>
                     
                     <div className="analysis-block">
-                      <div className="block-label blue">HOOK STRATEGY</div>
+                      <div className="block-label blue">STRATEGIC HOOK</div>
                       <blockquote className="hook-text">
                         "{selectedVideo.analysisJson.hook}"
                       </blockquote>
                     </div>
                     
                     <div className="analysis-block">
-                      <div className="block-label purple">CONTENT ANALYSIS</div>
-                      <p className="summary-text">{selectedVideo.analysisJson.summary}</p>
+                      <div className="block-label green">CREATIVE PLANNING RECOMMENDATION</div>
+                      <div className="planning-box">
+                        <div className="planning-header">
+                          <Lightbulb size={18} className="text-yellow-400" />
+                          <span>브랜드별 맞춤 기획안</span>
+                        </div>
+                        <div className="planning-content whitespace-pre-wrap">
+                          {selectedVideo.analysisJson.planning || "기획안을 생성 중입니다..."}
+                        </div>
+                      </div>
                     </div>
-                    
+
                     <div className="analysis-block">
-                      <div className="block-label green">SUCCESS TAKEAWAYS</div>
+                      <div className="block-label purple">KEY TAKEAWAYS</div>
                       <div className="takeaways-list">
                         {selectedVideo.analysisJson.takeaways.map((item, idx) => (
                           <div key={idx} className="takeaway-item">
@@ -154,7 +188,7 @@ export default function AnalysisPage() {
 
                   <div className="insights-footer">
                     <a href={selectedVideo.url} target="_blank" rel="noopener noreferrer" className="btn-primary">
-                      원본 영상 보기 <ExternalLink size={18} />
+                      원본 플랫폼에서 보기 <ExternalLink size={18} />
                     </a>
                   </div>
                 </div>
@@ -192,13 +226,13 @@ export default function AnalysisPage() {
           font-size: 3.5rem;
           font-weight: 900;
           margin-bottom: 0.75rem;
-          background: linear-gradient(135deg, #60a5fa 0%, #a855f7 100%);
+          background: linear-gradient(135deg, #3b82f6 0%, #a855f7 100%);
           -webkit-background-clip: text;
           background-clip: text;
           -webkit-text-fill-color: transparent;
           letter-spacing: -0.02em;
         }
-        .subtitle { color: #94a3b8; font-size: 1.25rem; font-weight: 400; }
+        .subtitle { color: #64748b; font-size: 1.25rem; font-weight: 400; }
         
         .category-nav {
           display: flex;
@@ -220,9 +254,9 @@ export default function AnalysisPage() {
         }
         .category-btn:hover { color: #fff; background: rgba(255,255,255,0.05); }
         .category-btn.active {
-          background: #2563eb;
+          background: #3b82f6;
           color: #fff;
-          box-shadow: 0 10px 25px -5px rgba(37, 99, 235, 0.4);
+          box-shadow: 0 10px 25px -5px rgba(59, 130, 246, 0.4);
         }
 
         .analysis-grid {
@@ -260,10 +294,31 @@ export default function AnalysisPage() {
           height: 100%;
           object-fit: cover;
           transition: transform 1.2s cubic-bezier(0.23, 1, 0.32, 1);
-          opacity: 0.85;
+          opacity: 0.8;
         }
         .analysis-card:hover .thumbnail-img { transform: scale(1.1); opacity: 1; }
         
+        .metrics-overlay {
+          position: absolute;
+          bottom: 1.5rem;
+          left: 1.5rem;
+          display: flex;
+          gap: 1rem;
+          z-index: 5;
+        }
+        .metric-item {
+          background: rgba(0, 0, 0, 0.6);
+          backdrop-filter: blur(8px);
+          padding: 0.3rem 0.8rem;
+          border-radius: 0.5rem;
+          font-size: 0.7rem;
+          font-weight: 700;
+          display: flex;
+          align-items: center;
+          gap: 0.4rem;
+          border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
         .card-badges {
           position: absolute;
           top: 1.5rem;
@@ -275,14 +330,14 @@ export default function AnalysisPage() {
           z-index: 5;
         }
         .category-badge {
-          background: rgba(0, 0, 0, 0.5);
+          background: rgba(59, 130, 246, 0.2);
           backdrop-filter: blur(12px);
           padding: 0.5rem 1.25rem;
           border-radius: 99rem;
           font-size: 0.75rem;
           font-weight: 800;
           color: #fff;
-          border: 1px solid rgba(255, 255, 255, 0.1);
+          border: 1px solid rgba(59, 130, 246, 0.3);
           letter-spacing: 0.05em;
         }
         .platform-icon-wrapper {
@@ -293,19 +348,6 @@ export default function AnalysisPage() {
           display: flex;
           border: 1px solid rgba(255, 255, 255, 0.1);
         }
-
-        .card-overlay {
-          position: absolute;
-          inset: 0;
-          background: radial-gradient(circle, rgba(0, 0, 0, 0) 0%, rgba(0, 0, 0, 0.4) 100%);
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          opacity: 0;
-          transition: opacity 0.4s;
-          z-index: 4;
-        }
-        .analysis-card:hover .card-overlay { opacity: 1; }
 
         .card-content { padding: 2rem; }
         .video-title {
@@ -324,23 +366,21 @@ export default function AnalysisPage() {
           justify-content: space-between;
           align-items: center;
         }
-        .score-badge {
-          color: #2563eb;
-          background: rgba(37, 99, 235, 0.1);
-          padding: 0.4rem 1rem;
-          border-radius: 0.75rem;
-          font-size: 0.85rem;
-          font-weight: 800;
-          border: 1px solid rgba(37, 99, 235, 0.2);
+        .performance-tag {
+          display: flex;
+          flex-direction: column;
         }
+        .score-label { font-size: 0.65rem; font-weight: 800; color: #64748b; text-transform: uppercase; margin-bottom: 0.2rem; }
+        .score-value { font-size: 1.5rem; font-weight: 900; color: #3b82f6; line-height: 1; }
         .view-details { font-size: 0.9rem; color: #64748b; font-weight: 600; display: flex; align-items: center; gap: 0.5rem; }
         .analysis-card:hover .view-details { color: #fff; }
 
+        /* Modal Settings */
         .modal-overlay {
           position: fixed;
           inset: 0;
           background: rgba(0, 0, 0, 0.95);
-          backdrop-filter: blur(12px);
+          backdrop-filter: blur(16px);
           z-index: 3000;
           display: flex;
           align-items: center;
@@ -351,8 +391,8 @@ export default function AnalysisPage() {
           position: relative;
           width: 100%;
           max-width: 1300px;
-          height: 100%;
-          max-height: 850px;
+          height: 90%;
+          max-height: 900px;
           background: #0a0a0c;
           border-radius: 3rem;
           border: 1px solid rgba(255, 255, 255, 0.1);
@@ -372,9 +412,7 @@ export default function AnalysisPage() {
           padding: 0.75rem;
           border-radius: 1.25rem;
           display: flex;
-          transition: all 0.3s;
         }
-        .modal-close:hover { background: rgba(255,255,255,0.15); transform: scale(1.1); }
 
         .modal-flex { display: flex; flex-direction: column; width: 100%; height: 100%; }
         @media (min-width: 1024px) { .modal-flex { flex-direction: row; } }
@@ -387,18 +425,10 @@ export default function AnalysisPage() {
           justify-content: center;
           min-height: 40%;
         }
-        @media (min-width: 1024px) { .video-section { flex: 0 0 60%; min-height: 100%; } }
+        @media (min-width: 1024px) { .video-section { flex: 0 0 55%; min-height: 100%; } }
 
-        .player-wrapper {
-          width: 100%;
-          height: 100%;
-          position: relative;
-        }
-        .player-wrapper iframe {
-          position: absolute;
-          top: 0; left: 0; width: 100%; height: 100%;
-          border: none;
-        }
+        .player-wrapper { width: 100%; height: 100%; position: relative; }
+        .embed-frame { position: absolute; top: 0; left: 0; width: 100%; height: 100%; border: none; }
 
         .insights-section {
           width: 100%;
@@ -407,25 +437,20 @@ export default function AnalysisPage() {
           flex-direction: column;
           border-top: 1px solid rgba(255, 255, 255, 0.1);
         }
-        @media (min-width: 1024px) { .insights-section { width: 40%; border-top: none; border-left: 1px solid rgba(255, 255, 255, 0.1); } }
+        @media (min-width: 1024px) { .insights-section { width: 45%; border-top: none; border-left: 1px solid rgba(255, 255, 255, 0.1); } }
 
         .insights-header {
-          padding: 2.5rem;
+          padding: 2rem 2.5rem;
           display: flex;
           justify-content: space-between;
           align-items: center;
           border-bottom: 1px solid rgba(255, 255, 255, 0.05);
         }
-        .platform-meta { display: flex; align-items: center; gap: 0.75rem; font-size: 0.85rem; font-weight: 900; color: #64748b; letter-spacing: 0.1em; }
-        .expert-badge { display: flex; flex-direction: column; align-items: flex-end; }
-        .expert-badge span { font-size: 0.7rem; color: #475569; font-weight: 800; text-transform: uppercase; margin-bottom: 0.25rem; }
-        .score-num { font-size: 2.5rem; color: #3b82f6; font-weight: 900; line-height: 1; }
+        .platform-meta { display: flex; align-items: center; gap: 0.75rem; font-size: 0.75rem; font-weight: 900; color: #475569; letter-spacing: 0.1em; }
+        .engagement-stats { display: flex; gap: 1.5rem; }
+        .stat { display: flex; align-items: center; gap: 0.5rem; color: #94a3b8; font-size: 0.9rem; font-weight: 700; }
 
-        .insights-body {
-          flex: 1;
-          padding: 2.5rem;
-          overflow-y: auto;
-        }
+        .insights-body { flex: 1; padding: 2.5rem; overflow-y: auto; }
         .modal-title { font-size: 1.75rem; font-weight: 900; margin-bottom: 3rem; line-height: 1.3; color: #fff; }
 
         .analysis-block { margin-bottom: 3.5rem; }
@@ -435,16 +460,26 @@ export default function AnalysisPage() {
         .block-label.green { color: #22c55e; }
         
         .hook-text { 
-          background: rgba(255, 255, 255, 0.02);
-          border: 1px solid rgba(255, 255, 255, 0.05);
+          background: rgba(59, 130, 246, 0.05);
+          border: 1px solid rgba(59, 130, 246, 0.1);
           padding: 1.5rem;
           border-radius: 1.5rem;
           font-style: italic;
-          color: #e2e8f0;
+          color: #bfdbfe;
           line-height: 1.6;
           font-size: 1.1rem;
           margin: 0;
         }
+
+        .planning-box {
+          background: linear-gradient(135deg, rgba(234, 179, 8, 0.05) 0%, rgba(245, 158, 11, 0.05) 100%);
+          border: 1px solid rgba(234, 179, 8, 0.1);
+          border-radius: 2rem;
+          padding: 2rem;
+        }
+        .planning-header { display: flex; align-items: center; gap: 0.75rem; margin-bottom: 1.5rem; color: #eab308; font-weight: 900; font-size: 0.9rem; }
+        .planning-content { color: #d1d5db; line-height: 1.8; font-size: 1.05rem; }
+        
         .summary-text { color: #94a3b8; line-height: 1.8; font-size: 1.05rem; }
         
         .takeaways-list { display: flex; flex-direction: column; gap: 1rem; }
@@ -467,7 +502,7 @@ export default function AnalysisPage() {
           transition: all 0.3s;
           font-size: 1.1rem;
         }
-        .btn-primary:hover { background: #f1f5f9; transform: scale(1.02); }
+        .btn-primary:hover { transform: scale(1.02); }
 
         .loader-container { 
           display: flex; flex-direction: column; align-items: center; justify-content: center;
@@ -482,7 +517,6 @@ export default function AnalysisPage() {
         .custom-scrollbar::-webkit-scrollbar { width: 6px; }
         .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
         .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.05); border-radius: 10px; }
-        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: rgba(255, 255, 255, 0.1); }
       `}</style>
     </main>
   );
