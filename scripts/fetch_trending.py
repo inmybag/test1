@@ -20,7 +20,7 @@ def get_trending_shorts(keyword, platform='youtube', count=5):
         'python3', '-m', 'yt_dlp',
         f'ytsearch{count * 2}:{search_keyword}',
         '--flat-playlist',
-        '--print', '%(id)s|%(title)s|%(thumbnails.-1.url)s|%(webpage_url)s|%(view_count)s|%(like_count)s|%(comment_count)s',
+        '--print', '%(id)s|%(title)s|%(thumbnails.-1.url)s|%(webpage_url)s|%(view_count)s|%(like_count)s|%(comment_count)s|%(description)s',
         '--max-downloads', str(count)
     ]
     
@@ -31,23 +31,34 @@ def get_trending_shorts(keyword, platform='youtube', count=5):
         for line in lines:
             if '|' in line:
                 parts = line.split('|')
-                if len(parts) >= 7:
+                if len(parts) >= 8:
                     vid = parts[0]
-                    title = "|".join(parts[1:-5])
-                    thumb = parts[-5]
-                    url = parts[-4]
-                    views = int(parts[-3]) if parts[-3] != 'NA' and parts[-3] != 'None' else 0
-                    likes = int(parts[-2]) if parts[-2] != 'NA' and parts[-2] != 'None' else 0
-                    comments = int(parts[-1]) if parts[-1] != 'NA' and parts[-1] != 'None' else 0
+                    title = "|".join(parts[1:-6])
+                    thumb = parts[-6]
+                    url = parts[-5]
+                    views = int(parts[-4]) if parts[-4] != 'NA' and parts[-4] != 'None' and parts[-4].isdigit() else 0
+                    likes = int(parts[-3]) if parts[-3] != 'NA' and parts[-3] != 'None' and parts[-3].isdigit() else 0
+                    comments = int(parts[-2]) if parts[-2] != 'NA' and parts[-2] != 'None' and parts[-2].isdigit() else 0
+                    desc = parts[-1]
                     
-                    # Detect platform more accurately
-                    detected_platform = 'youtube'
-                    if 'tiktok' in title.lower() or 'tiktok' in url.lower():
+                    # Detect platform by URL source
+                    if 'youtube.com' in url or 'youtu.be' in url:
+                        detected_platform = 'youtube'
+                        if '/shorts/' in url:
+                            vid = url.split('/shorts/')[-1].split('?')[0].split('&')[0]
+                        elif 'v=' in url:
+                            vid = url.split('v=')[-1].split('&')[0]
+                    elif 'tiktok.com' in url:
                         detected_platform = 'tiktok'
-                    elif 'reels' in title.lower() or 'instagram' in url.lower():
+                        vid = url.split('/')[-1].split('?')[0]
+                    elif 'instagram.com' in url:
                         detected_platform = 'instagram'
+                        if '/reels/' in url:
+                            vid = url.split('/reels/')[-1].split('/')[0]
+                        elif '/p/' in url:
+                            vid = url.split('/p/')[-1].split('/')[0]
                     else:
-                        detected_platform = platform # Fallback to search intent
+                        detected_platform = platform 
                     
                     videos.append({
                         'platform': detected_platform,
@@ -59,7 +70,8 @@ def get_trending_shorts(keyword, platform='youtube', count=5):
                         'date_str': datetime.now().strftime('%Y%m%d'),
                         'view_count': views,
                         'like_count': likes,
-                        'comment_count': comments
+                        'comment_count': comments,
+                        'description': desc
                     })
         return videos[:count]
     except Exception as e:
@@ -85,17 +97,18 @@ def save_to_db(videos):
             }
             
             cur.execute("""
-                INSERT INTO video_analyses (platform, video_id, url, title, thumbnail, category, date_str, analysis_json, view_count, like_count, comment_count)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                INSERT INTO video_analyses (platform, video_id, url, title, thumbnail, category, date_str, analysis_json, view_count, like_count, comment_count, description)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                 ON CONFLICT (video_id, date_str) 
                 DO UPDATE SET 
                     view_count = EXCLUDED.view_count, 
                     like_count = EXCLUDED.like_count, 
-                    comment_count = EXCLUDED.comment_count;
+                    comment_count = EXCLUDED.comment_count,
+                    description = EXCLUDED.description;
             """, (
                 v['platform'], v['video_id'], v['url'], v['title'], v['thumbnail'], 
                 v['category'], v['date_str'], json.dumps(analysis),
-                v['view_count'], v['like_count'], v['comment_count']
+                v['view_count'], v['like_count'], v['comment_count'], v['description']
             ))
             
         conn.commit()

@@ -38,16 +38,37 @@ export default function AnalysisPage() {
   };
 
   const getEmbedUrl = (video) => {
-    if (!video) return '';
-    const { platform, video_id, url } = video;
-    if (platform === 'youtube') return `https://www.youtube.com/embed/${video_id}?autoplay=1`;
-    if (platform === 'tiktok') return `https://www.tiktok.com/embed/v2/${video_id}`;
-    if (platform === 'instagram') return `https://www.instagram.com/reel/${video_id}/embed`;
+    if (!video || !video.url) return '';
+    const { platform, videoId, url } = video;
+    
+    // Always use YouTube player if URL is from YouTube
+    if (url.includes('youtube.com') || url.includes('youtu.be')) {
+      let id = videoId;
+      // Backup ID extraction if videoId is missing or wrong
+      if (!id || id === 'undefined') {
+        const match = url.match(/(?:shorts\/|v=|\/)([0-9A-Za-z_-]{11})/);
+        id = match ? match[1] : '';
+      }
+      return `https://www.youtube.com/embed/${id}?autoplay=1`;
+    }
+    
+    // Native TikTok
+    if (url.includes('tiktok.com')) {
+      const id = url.split('/').pop().split('?')[0];
+      return `https://www.tiktok.com/embed/v2/${id}`;
+    }
+    
+    // Native Instagram
+    if (url.includes('instagram.com')) {
+      const id = url.split('/reel/')[1]?.split('/')[0] || url.split('/p/')[1]?.split('/')[0];
+      return `https://www.instagram.com/reel/${id}/embed`;
+    }
+    
     return url;
   };
 
   const formatCount = (num) => {
-    if (!num) return '0';
+    if (num === 0 || num === '0' || !num) return 'Pending';
     if (num >= 1000000) return (num / 1000000).toFixed(1) + 'M';
     if (num >= 1000) return (num / 1000).toFixed(1) + 'K';
     return num.toLocaleString();

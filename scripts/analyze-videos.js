@@ -9,53 +9,88 @@ const TARGET_BRANDS = [
 ];
 
 function calculateScore(views, likes, comments) {
-  // Weighted Engagement Score (Normalized)
   const v = parseInt(views) || 0;
   const l = parseInt(likes) || 0;
   const c = parseInt(comments) || 0;
-  
-  // Weights: Views (0.01), Likes (1.0), Comments (3.0)
-  // These small weights are to keep the score in a reasonable range (0-100)
   let raw = (v * 0.001) + (l * 0.5) + (c * 2.0);
   let score = Math.min(Math.round(raw), 99);
-  return Math.max(score, 65); // Baseline 65 for viral content
+  return Math.max(score, 65);
 }
 
-function generatePlanning(originalBrand, originalTitle) {
+function analyzeMetatdata(title, description, category) {
+  const text = (title + ' ' + (description || '')).toLowerCase();
+  
+  let hook = "";
+  let type = "일반";
+  
+  if (text.includes("꿀팁") || text.includes("tips") || text.includes("루틴")) {
+    hook = `시청자가 즉시 따라 할 수 있는 '${category}' 정보성 팁으로 초반 이탈 방지`;
+    type = "교육/정보";
+  } else if (text.includes("aesthetic") || text.includes("감성") || text.includes("vlog")) {
+    hook = `시각적 완성도와 감성적인 ASMR 효과를 활용하여 '${category}' 브랜드 무드 전달`;
+    type = "감성/브랜딩";
+  } else if (text.includes("asmr") || text.includes("소리") || text.includes("texture")) {
+    hook = `제품의 제형과 사용 소리를 극대화하여 '${category}' 제품의 촉각적 만족도 자극`;
+    type = "ASMR/제형";
+  } else if (text.includes("리뷰") || text.includes("review") || text.includes("추천")) {
+    hook = `실제 사용자의 솔직한 후기와 '전/후' 비교를 통해 '${category}' 신뢰도 확보`;
+    type = "리뷰/검증";
+  } else {
+    hook = `'${category}' 카테고리의 트렌디한 사운드와 빠른 컷 편집으로 시청 지속시간 확보`;
+    type = "트렌드/바이럴";
+  }
+
+  return { hook, type };
+}
+
+function generatePlanning(title, type, category) {
   const recommendations = {
-    "Age 20's": `포켓 사이즈의 팩트 제형을 강조한 '3초 수정 화장' 챌린지 제안. ${originalTitle}의 속도감 있는 편집을 벤치마킹하여 수분 광채가 올라오는 순간을 클로즈업하세요.`,
-    "Luna": `${originalTitle}에서 보여준 레이어링 기법을 적용하여, '다크서클 실종 커버' 숏폼을 기획하세요. 제품의 밀착력을 시각적으로 보여주는 탭핑 소리 강조가 필요합니다.`,
-    "Siqnic": `고급스러운 패키징과 향을 강조한 '나를 위한 럭셔리 루틴' 테마. ${originalTitle}의 무드 있는 조명을 참고하여 브랜드의 프리미엄 이미지를 구축하세요.`,
-    "One Thing": `원재료의 순수함을 시각화한 'DIY 스킨케어 꿀조합' 시리즈. ${originalTitle}의 직관적인 정보 전달 방식을 빌려 인공 색소 없는 원액의 색감을 강조하세요.`,
-    "Kerasys": `${originalTitle}의 비포/애프터 변화를 적용하여 '손상모 심폐소생술' 쇼츠를 기획하세요. 샴푸 후 빗질이 한 번에 되는 슬로우 모션 컷이 핵심입니다.`,
-    "Luvcent": `향수를 뿌린 듯한 '잔향 지속력 테스트' 콘텐츠. ${originalTitle}의 스토리텔링 형식을 빌려 일상 속에서 향기로운 순간을 감성적으로 담아내세요.`,
-    "Shower Mate": `온 가족이 함께 즐기는 '거품 폭탄 샤워' 챌린지. ${originalTitle}의 활기찬 에너지를 벤치마킹하여 풍성한 거품 제형과 상쾌한 세정력을 강조하세요.`,
-    "TISSlo": `프로페셔널한 아티스트의 터치를 담은 '1분 메이크업 마스터' 시리즈. ${originalTitle}의 전문적인 팁 제시 방식을 활용하여 브랜드의 전문성을 부각시키세요.`
+    "Age 20's": type === "ASMR/제형" 
+      ? `팩트의 수분감이 터지는 순간을 클로즈업한 '${title}' 스타일의 제형 쇼츠 기획`
+      : `수정 화장 루틴 속에서 자연스럽게 노출되는 Age 20's의 광채 강조 콘텐츠`,
+    "Luna": type === "리뷰/검증"
+      ? `컨실러 무너짐 테스트 등 '${title}'의 검증 방식을 차용한 고밀착 커버력 증명 영상`
+      : `전문 아티스트의 터치감을 살린 Luna 베이스 메이크업 꿀팁 시리즈`,
+    "Siqnic": `브랜드의 고급스러운 향과 패키징을 '${title}'의 감성적인 무드로 풀어낸 브랜딩 영상`,
+    "One Thing": `원액의 순수함을 강조하기 위해 '${title}'처럼 군더더기 없는 미니멀 편집 방식 도입`,
+    "Kerasys": type === "교육/정보"
+      ? `'${title}'의 팁을 활용하여 손상모를 비단결로 만드는 샴푸법 교육 콘텐츠`
+      : `찰랑이는 머릿결의 비포/애프터를 극적으로 보여주는 반전 쇼츠`,
+    "Luvcent": `${title}의 사운드 디자인을 참고하여 고급스러운 잔향이 느껴지는 듯한 시각적 연출`,
+    "Shower Mate": `온 가족이 사용하는 친근한 이미지를 '${title}'의 활기찬 에너지와 결합한 일상 콘텐츠`,
+    "TISSlo": `전문적인 메이크업 가이드를 '${title}'의 직관적인 자막 편집 스타일로 재구성`
   };
   
-  // Return a few relevant ones based on a simple rotation or randomized logic for variety
   const keys = Object.keys(recommendations);
-  return keys.map(k => `**${k}**: ${recommendations[k]}`).slice(0, 3).join('\n\n');
+  // 전체 브랜드 중 상위 3개만 추천 (내용 다양성을 위해 제목 기반 인덱싱 사용)
+  const startIdx = title.length % (keys.length - 2);
+  return keys.slice(startIdx, startIdx + 3).map(k => `**${k}**: ${recommendations[k]}`).join('\n\n');
 }
 
 async function analyze() {
   const today = new Date().toLocaleDateString('en-CA').replace(/-/g, '');
   const { rows } = await pool.query('SELECT * FROM video_analyses WHERE date_str = $1', [today]);
   
-  console.log(`Analyzing ${rows.length} videos for ${today}...`);
+  if (rows.length === 0) {
+    console.log("No videos found to analyze today.");
+    process.exit(0);
+  }
+
+  console.log(`Analyzing ${rows.length} videos with metadata...`);
   
   for (const row of rows) {
     const score = calculateScore(row.view_count, row.like_count, row.comment_count);
-    const planning = generatePlanning(row.category, row.title);
+    const { hook, type } = analyzeMetatdata(row.title, row.description, row.category);
+    const planning = generatePlanning(row.title, type, row.category);
     
     const analysis = {
       score,
-      hook: `${row.category} 브랜드의 ${score > 85 ? '글로벌' : '바이럴'} 성공 방정식 분석`,
-      summary: `${row.title} 영상은 인게이지먼트 수치(Likes: ${row.like_count}) 기준 상위권에 속하며, ${row.platform} 플랫폼 유저들의 취향을 저격하는 시각적 요소를 포함하고 있습니다.`,
+      hook: hook,
+      summary: `이 영상은 '${type}' 카테고리에서 두각을 나타내며, 특히 ${row.title.substring(0, 20)}... 라는 메시지로 높은 반응을 이끌어냈습니다.`,
       takeaways: [
-        `조회수 ${row.view_count.toLocaleString()}회 달성 핵심 요인 분석`,
-        `${row.platform} 알고리즘에 최적화된 도입부 구성`,
-        "시청자 참여도를 높이는 명확한 콜 투 액션(CTA)"
+        `실제 조회수 ${row.view_count.toLocaleString()}회가 증명하는 ${type} 전략의 유효성`,
+        `${row.category} 관심 타겟에게 어필하는 명확한 시각적 장치`,
+        `${row.platform} 알고리즘이 선호하는 빠른 템포의 전개`
       ],
       planning: planning
     };
@@ -66,7 +101,7 @@ async function analyze() {
     );
   }
   
-  console.log('Advanced analysis complete.');
+  console.log('Deep analysis complete with unique insights.');
   process.exit(0);
 }
 
