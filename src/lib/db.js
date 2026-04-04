@@ -23,6 +23,23 @@ export async function initDb() {
     await sql`
       ALTER TABLE rankings ADD COLUMN IF NOT EXISTS product_id TEXT;
     `;
+
+    // Add video_analyses table
+    await sql`
+      CREATE TABLE IF NOT EXISTS video_analyses (
+        id SERIAL PRIMARY KEY,
+        platform TEXT NOT NULL,
+        video_id TEXT NOT NULL,
+        url TEXT NOT NULL,
+        title TEXT NOT NULL,
+        thumbnail TEXT,
+        category TEXT NOT NULL,
+        date_str TEXT NOT NULL,
+        analysis_json JSONB,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(video_id, date_str)
+      );
+    `;
     console.log('Database initialized and migrated successfully.');
   } catch (error) {
     console.error('Failed to initialize database:', error);
@@ -99,6 +116,66 @@ export async function getRankingHistory(productId, dateStr, days = 30, title = '
     return rows.reverse();
   } catch (error) {
     console.error('History fetch error:', error);
+    return [];
+  }
+}
+
+export async function saveVideoAnalysis(video) {
+  if (!isProd) {
+    console.log('Mock Save Analysis:', video.video_id);
+    global.analysisDb = global.analysisDb || [];
+    global.analysisDb = global.analysisDb.filter(item => !(item.video_id === video.video_id && item.date_str === video.date_str));
+    global.analysisDb.push(video);
+    return true;
+  }
+
+  try {
+    await sql`
+      INSERT INTO video_analyses (platform, video_id, url, title, thumbnail, category, date_str, analysis_json)
+      VALUES (${video.platform}, ${video.video_id}, ${video.url}, ${video.title}, ${video.thumbnail}, ${video.category}, ${video.date_str}, ${JSON.stringify(video.analysis_json)})
+      ON CONFLICT (video_id, date_str) 
+      DO UPDATE SET 
+        title = EXCLUDED.title,
+        thumbnail = EXCLUDED.thumbnail,
+        analysis_json = EXCLUDED.analysis_json;
+    `;
+    return true;
+  } catch (error) {
+    console.error('Save video analysis error:', error);
+    return false;
+  }
+}
+
+export async function getVideoAnalyses(dateStr, category = null) {
+  if (!isProd) {
+    let results = (global.analysisDb || []).filter(item => item.date_str === dateStr);
+    if (category) {
+      results = results.filter(item => item.category === category);
+    }
+    return results;
+  }
+
+  try {
+    let query;
+    if (category) {
+      query = sql`
+        SELECT platform, video_id as "videoId", url, title, thumbnail, category, date_str as "dateStr", analysis_json as "analysisJson"
+        FROM video_analyses 
+        WHERE date_str = ${dateStr} AND category = ${category}
+        ORDER BY created_at DESC;
+      `;
+    } else {
+      query = sql`
+        SELECT platform, video_id as "videoId", url, title, thumbnail, category, date_str as "dateStr", analysis_json as "analysisJson"
+        FROM video_analyses 
+        WHERE date_str = ${dateStr}
+        ORDER BY created_at DESC;
+      `;
+    }
+    const { rows } = await query;
+    return rows;
+  } catch (error) {
+    console.error('Fetch video analyses error:', error);
     return [];
   }
 }
