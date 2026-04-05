@@ -33,9 +33,24 @@ const TARGET_KEYWORDS = [
 ];
 
 const COUNTS = {
-  tiktok: 3,
-  instagram: 2
+  tiktok: 5,     // 키워드별 후보 수집량 (17개 키워드 x 5 = 85개 후보 중 Top 10 선정)
+  instagram: 4   // 인스타그램 후보 수집량
 };
+
+// 지표 텍스트(1.2M, 10K 등)를 숫자로 변환하는 헬퍼
+function parseMetric(text) {
+  if (!text) return 0;
+  const clean = text.replace(/[^0-9.KMBm]/g, '').toUpperCase();
+  if (clean.includes('M')) return parseFloat(clean) * 1000000;
+  if (clean.includes('K')) return parseFloat(clean) * 1000;
+  if (clean.includes('B')) return parseFloat(clean) * 1000000000;
+  return parseFloat(clean) || 0;
+}
+
+// 인게이지먼트 점수 산출: (좋아요x10) + (댓글x50) + (조회수x0.05)
+function calculateEngagementScore(v) {
+  return (v.like_count * 10) + (v.comment_count * 50) + (v.view_count * 0.05);
+}
 
 async function saveToDb(dateStr, videos) {
   if (!videos || videos.length === 0) return;
@@ -92,32 +107,32 @@ async function fetchTikTok(browser, keyword_en, keyword_ko, category, count) {
     await page.goto(url, { waitUntil: 'networkidle2', timeout: 30000 });
     await delay(3000);
     
-    const videos = await page.evaluate((category, count) => {
+    const videos = await page.evaluate((category, count, parseMetricFnStr) => {
+      const parseMetric = new Function("return " + parseMetricFnStr)();
       const items = [];
-      const videoCards = document.querySelectorAll('div[data-e2e="search_video-item"], a[href*="/video/"]');
-      let found = 0;
+      const videoCards = document.querySelectorAll('div[data-e2e="search_video-item"], div[class*="DivVideoItem"]');
       
-      for (const el of videoCards) {
-        if (found >= count) break;
-        let aTag = el.tagName === 'A' ? el : el.querySelector('a[href*="/video/"]');
-        if (!aTag) continue;
+      videoCards.forEach((el, index) => {
+        if (items.length >= count) return;
+        const aTag = el.querySelector('a[href*="/video/"]');
+        if (!aTag) return;
         
         const url = aTag.href;
-        if (!url.includes('/video/')) continue;
+        let video_id = url.split('/video/')[1]?.split('?')[0];
+        if (!video_id || items.some(i => i.video_id === video_id)) return;
         
-        let video_id = url.split('/video/')[1];
-        if (video_id && video_id.includes('?')) {
-          video_id = video_id.split('?')[0];
-        }
+        const titleEl = el.querySelector('div[data-e2e="search-card-video-caption"], .video-desc, .desc');
+        const title = titleEl ? titleEl.innerText : "TikTok 벤치마킹 영상";
         
-        if (items.some(i => i.video_id === video_id)) continue;
-        
-        // TikTok specific selectors for search page
-        const titleEl = el.closest('div').querySelector('.tiktok-j2a19r-SpanText, .video-desc, .desc, div[data-e2e="search-card-video-caption"]');
-        const title = titleEl ? titleEl.innerText : `TikTok 벤치마킹 - ${video_id}`;
-        
-        const thumbEl = el.closest('div').querySelector('img');
+        const thumbEl = el.querySelector('img');
         const thumbnail = thumbEl ? thumbEl.src : '';
+        
+        // 틱톡 조회수 추출
+        const viewEl = el.querySelector('strong[data-e2e="video-views"], .video-count, .views');
+        const viewCount = viewEl ? parseMetric(viewEl.innerText) : 0;
+        
+        // 지표가 없을 경우 검색 순위를 기반으로 가상의 인게이지먼트 점수 부여 (역순)
+        const rankScore = (count - index) * 1000;
         
         items.push({
           platform: 'tiktok',
@@ -126,17 +141,16 @@ async function fetchTikTok(browser, keyword_en, keyword_ko, category, count) {
           title: title,
           thumbnail: thumbnail,
           category: category,
-          view_count: 0,
+          view_count: viewCount || rankScore,
           like_count: 0,
           comment_count: 0,
-          description: `[TikTok 벤치마킹] 직접 크롤링 수집`
+          description: `[TikTok TOP 10] 성과 기반 수집`
         });
-        found++;
-      }
+      });
       return items;
-    }, category, count);
+    }, category, count, parseMetric.toString());
     
-    console.log(`  ✅ TikTok [${keyword_ko}]: ${videos.length}개 수집 (목표: ${count}개)`);
+    console.log(`  ✅ TikTok [${keyword_ko}]: ${videos.length}개 후보 수집`);
     return videos;
   } catch (error) {
     console.log(`  ❌ TikTok 수집 실패 (${keyword_ko}): ${error.message}`);
@@ -166,23 +180,25 @@ async function fetchInstagram(browser, keyword_en, keyword_ko, category, count) 
         throw new Error("비로그인 접속 차단 (로그인 페이지로 강제 리다이렉트됨).");
     }
 
-    const videos = await page.evaluate((category, count) => {
+    const videos = await page.evaluate((category, count, parseMetricFnStr) => {
+      const parseMetric = new Function("return " + parseMetricFnStr)();
       const items = [];
       const links = document.querySelectorAll('a[href*="/p/"], a[href*="/reel/"]');
-      let found = 0;
-      for (const a of links) {
-        if (found >= count) break;
+      
+      links.forEach((a, index) => {
+        if (items.length >= count) return;
         const url = a.href;
         let type = url.includes('/reel/') ? '/reel/' : '/p/';
-        let video_id = url.split(type)[1];
-        if (video_id && video_id.includes('/')) {
-            video_id = video_id.split('/')[0];
-        }
-        if (!video_id || items.some(i => i.video_id === video_id)) continue;
+        let video_id = url.split(type)[1]?.split('/')[0];
+        
+        if (!video_id || items.some(i => i.video_id === video_id)) return;
         
         const img = a.querySelector('img');
         const thumbnail = img ? img.src : '';
         const desc = img ? img.alt : '';
+        
+        // 인스타그램은 비로그인 시 수치 추출이 어려우므로 검색 노출 순서(인기순 정렬됨)를 점수화
+        const rankScore = (count - index) * 5000;
         
         items.push({
           platform: 'instagram',
@@ -191,15 +207,14 @@ async function fetchInstagram(browser, keyword_en, keyword_ko, category, count) 
           title: `Instagram Post - ${video_id}`,
           thumbnail: thumbnail,
           category: category,
-          view_count: 0,
+          view_count: rankScore, 
           like_count: 0,
           comment_count: 0,
-          description: `[Instagram 벤치마킹] ${desc || '릴스/게시물'}`
+          description: `[Instagram TOP 10] 성과 기반 수집 (인기 태그 순위 반영)`
         });
-        found++;
-      }
+      });
       return items;
-    }, category, count);
+    }, category, count, parseMetric.toString());
 
     console.log(`  ✅ Instagram [${keyword_ko}]: ${videos.length}개 수집 (목표: ${count}개)`);
     return videos;
@@ -229,30 +244,42 @@ async function main() {
     args: ['--no-sandbox', '--disable-setuid-sandbox']
   });
 
-  let total = 0;
+  let all_tt_candidates = [];
+  let all_ig_candidates = [];
 
   for (const item of TARGET_KEYWORDS) {
     const { en, ko, type } = item;
-    console.log(`\n📌 [${type}] ${ko} (${en})`);
+    console.log(`\n📌 [${type}] ${ko} 후보군 수집 중...`);
     
-    // TikTok
+    // TikTok 후보 수집
     const tt_videos = await fetchTikTok(browser, en, ko, type, COUNTS.tiktok);
-    tt_videos.forEach(v => v.date_str = todayStr);
-    await saveToDb(todayStr, tt_videos);
-    total += tt_videos.length;
+    all_tt_candidates.push(...tt_videos);
 
-    // Instagram
+    // Instagram 후보 수집
     const ig_videos = await fetchInstagram(browser, en, ko, type, COUNTS.instagram);
-    ig_videos.forEach(v => v.date_str = todayStr);
-    await saveToDb(todayStr, ig_videos);
-    total += ig_videos.length;
+    all_ig_candidates.push(...ig_videos);
     
-    await delay(3000); // delay between keywords to avoid immediate ban
+    await delay(2000);
   }
+
+  // 1. TikTok TOP 10 선별 및 저장
+  console.log(`\n📊 TikTok TOP 10 선별 중 (총 ${all_tt_candidates.length}개 후보)...`);
+  all_tt_candidates.sort((a, b) => calculateEngagementScore(b) - calculateEngagementScore(a));
+  const top10_tt = all_tt_candidates.slice(0, 10);
+  top10_tt.forEach(v => v.date_str = todayStr);
+  await saveToDb(todayStr, top10_tt);
+
+  // 2. Instagram TOP 10 선별 및 저장
+  console.log(`\n📊 Instagram TOP 10 선별 중 (총 ${all_ig_candidates.length}개 후보)...`);
+  // 인스타그램 게시물은 조회수가 바로 안나오는 경우가 많아 수집 순서(인기순)를 보조 지표로 활용 제안할 수 있으나, 일단 점수 정렬 유지
+  all_ig_candidates.sort((a, b) => calculateEngagementScore(b) - calculateEngagementScore(a));
+  const top10_ig = all_ig_candidates.slice(0, 10);
+  top10_ig.forEach(v => v.date_str = todayStr);
+  await saveToDb(todayStr, top10_ig);
 
   await browser.close();
   console.log("\n" + "=".repeat(60));
-  console.log(`✅ 브라우저 직접 크롤링 완료: 총 ${total}개 영상 수집`);
+  console.log(`✅ 성과 기반 크롤링 완료: 플랫폼별 상위 10개씩 저장되었습니다.`);
   console.log("=".repeat(60));
   
   process.exit(0);

@@ -45,12 +45,17 @@ TARGET_KEYWORDS = [
     {"en": "kitchen grease hack", "ko": "주방 기름때 제거", "type": "Household"},
 ]
 
-# 플랫폼별 최대 수집 건수
+# 플랫폼별 샘플 수집 건수 (Top 10 선별을 위한 후보군)
 COUNTS = {
-    "youtube":   3,   # YouTube Shorts
-    "instagram": 2,   # Instagram Reels
-    "tiktok":    3,   # TikTok
+    "youtube":   5,   # 키워드별 후보 수집량 (17개 키워드 x 5 = 85개 후보 중 Top 10 선정)
 }
+
+def calculate_engagement_score(v):
+    """인게이지먼트 점수 산출: (좋아요x10) + (댓글x50) + (조회수x0.05)"""
+    likes = v.get('like_count', 0) or 0
+    comments = v.get('comment_count', 0) or 0
+    views = v.get('view_count', 0) or 0
+    return (likes * 10) + (comments * 50) + (views * 0.05)
 
 # ─────────────────────────────────────────────────────────
 # yt-dlp 공통 실행 헬퍼
@@ -306,36 +311,36 @@ def save_to_db(videos: list) -> None:
 
 def main():
     print("=" * 60)
-    print(f"🎬 숏폼 크롤링 시작 | 날짜: {TODAY}")
-    print(f"   플랫폼: YouTube Shorts / Instagram Reels / TikTok")
+    print(f"🎬 유튜브 TOP 10 실시간 수집 시작 | 날짜: {TODAY}")
+    print(f"   집계 기준: 인게이지먼트 스코어 (좋아요/댓글 가중치)")
     print(f"   키워드: {len(TARGET_KEYWORDS)}개")
     print("=" * 60)
 
-    total = 0
+    all_yt_candidates = []
+    
     for item in TARGET_KEYWORDS:
         en, ko, cat = item['en'], item['ko'], item['type']
-        print(f"\n📌 [{cat}] {ko} ({en})")
+        print(f"\n📌 [{cat}] {ko} 후보군 수집 중...")
 
-        # 1. YouTube Shorts
+        # 1. YouTube Shorts 후보군 수집
         yt_videos = fetch_youtube_shorts(en, ko, cat, COUNTS['youtube'])
-        save_to_db(yt_videos)
-        total += len(yt_videos)
-        time.sleep(2)   # 요청 간 딜레이
+        all_yt_candidates.extend(yt_videos)
+        time.sleep(1)
 
-        # 2. Instagram Reels (이제 Node.js Puppeteer가 담당)
-        # ig_videos = fetch_instagram_reels(en, ko, cat, COUNTS['instagram'])
-        # save_to_db(ig_videos)
-        # total += len(ig_videos)
-        # time.sleep(2)
-
-        # 3. TikTok (이제 Node.js Puppeteer가 담당)
-        # tt_videos = fetch_tiktok(en, ko, cat, COUNTS['tiktok'])
-        # save_to_db(tt_videos)
-        # total += len(tt_videos)
-        # time.sleep(2)
+    print("\n" + "-" * 60)
+    print(f"📊 총 {len(all_yt_candidates)}개 후보 중 TOP 10 선별 시작...")
+    
+    # 인게이지먼트 점수 기준으로 정렬
+    all_yt_candidates.sort(key=lambda x: calculate_engagement_score(x), reverse=True)
+    
+    # 상위 10개 추출
+    top_10_yt = all_yt_candidates[:10]
+    
+    print(f"🏆 상위 10개 영상 확정 (최고점: {calculate_engagement_score(top_10_yt[0]) if top_10_yt else 0:.1f})")
+    save_to_db(top_10_yt)
 
     print("\n" + "=" * 60)
-    print(f"✅ 전체 크롤링 완료: 총 {total}개 영상 수집 및 저장")
+    print(f"✅ 유튜브 성과 기반 수집 완료: 총 {len(top_10_yt)}개 저장")
     print("=" * 60)
 
 
