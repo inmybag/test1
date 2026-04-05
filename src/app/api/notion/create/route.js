@@ -1,5 +1,6 @@
 import { Client } from '@notionhq/client';
 import { NextResponse } from 'next/server';
+import { updateVideoNotionUrl } from '@/lib/db';
 
 const notion = new Client({ auth: process.env.NOTION_API_KEY });
 const PARENT_PAGE_ID = process.env.NOTION_PAGE_ID;
@@ -7,7 +8,7 @@ const PARENT_PAGE_ID = process.env.NOTION_PAGE_ID;
 export async function POST(req) {
   try {
     const data = await req.json();
-    const { title, platform, category, score, hook, commentInsight, planning, url, thumbnail } = data;
+    const { title, platform, category, score, hook, commentInsight, planning, url, thumbnail, videoId, dateStr } = data;
 
     if (!PARENT_PAGE_ID) {
       throw new Error('NOTION_PAGE_ID is not configured in .env.local');
@@ -79,6 +80,10 @@ export async function POST(req) {
         ...blocks
       ],
     });
+
+    if (videoId && dateStr) {
+      await updateVideoNotionUrl(videoId, dateStr, response.url);
+    }
 
     return NextResponse.json({ success: true, url: response.url });
   } catch (error) {

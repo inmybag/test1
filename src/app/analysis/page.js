@@ -15,7 +15,6 @@ export default function AnalysisPage() {
   const [totalPages, setTotalPages] = useState(1);
   const [mounted, setMounted] = useState(false);
   const [isSendingToNotion, setIsSendingToNotion] = useState(false);
-  const [notionUrl, setNotionUrl] = useState(null);
 
   useEffect(() => {
     setMounted(true);
@@ -53,7 +52,6 @@ export default function AnalysisPage() {
   const sendToNotion = async (video) => {
     if (isSendingToNotion) return;
     setIsSendingToNotion(true);
-    setNotionUrl(null);
 
     try {
       const response = await fetch('/api/notion/create', {
@@ -68,13 +66,16 @@ export default function AnalysisPage() {
           commentInsight: video.analysisJson.commentInsight,
           planning: video.analysisJson.planning,
           url: video.url,
-          thumbnail: video.thumbnail
+          thumbnail: video.thumbnail,
+          videoId: video.videoId,
+          dateStr: video.dateStr
         })
       });
 
       const result = await response.json();
       if (result.success) {
-        setNotionUrl(result.url);
+        // Update local state for success feedback
+        video.notionUrl = result.url;
         alert('🚀 마케팅부문 노션 페이지로 성공적으로 전송되었습니다!');
       } else {
         alert('❌ 노션 전송 중 오류가 발생했습니다: ' + result.error);
@@ -561,8 +562,8 @@ export default function AnalysisPage() {
                         원본 채널 방문 <ExternalLink size={16} />
                       </a>
                       
-                      {notionUrl ? (
-                        <a href={notionUrl} target="_blank" rel="noopener noreferrer" className="btn-notion success">
+                      {selectedVideo.notionUrl ? (
+                        <a href={selectedVideo.notionUrl} target="_blank" rel="noopener noreferrer" className="btn-notion success">
                           노션 페이지 확인하기 <ArrowRight size={16} />
                         </a>
                       ) : (

@@ -52,6 +52,7 @@ export async function initDb() {
     await sql`ALTER TABLE video_analyses ADD COLUMN IF NOT EXISTS comment_count INT DEFAULT 0;`;
     await sql`ALTER TABLE video_analyses ADD COLUMN IF NOT EXISTS description TEXT;`;
     await sql`ALTER TABLE video_analyses ADD COLUMN IF NOT EXISTS comments JSONB DEFAULT '[]';`;
+    await sql`ALTER TABLE video_analyses ADD COLUMN IF NOT EXISTS notion_url TEXT;`;
     
     console.log('Database initialized and migrated successfully.');
   } catch (error) {
@@ -163,7 +164,8 @@ export async function saveVideoAnalysis(video) {
         like_count = EXCLUDED.like_count,
         comment_count = EXCLUDED.comment_count,
         description = EXCLUDED.description,
-        comments = EXCLUDED.comments;
+        comments = EXCLUDED.comments,
+        notion_url = COALESCE(video_analyses.notion_url, EXCLUDED.notion_url);
     `;
     return true;
   } catch (error) {
@@ -188,7 +190,8 @@ export async function getVideoAnalyses(dateStr, category = null) {
           platform, video_id as "videoId", url, title, thumbnail, category, 
           date_str as "dateStr", analysis_json as "analysisJson",
           view_count as "viewCount", like_count as "likeCount", 
-          comment_count as "commentCount", description, comments
+          comment_count as "commentCount", description, comments,
+          notion_url as "notionUrl"
         FROM video_analyses 
         WHERE date_str = ${dateStr} AND category = ${category}
         ORDER BY created_at DESC;
@@ -200,7 +203,8 @@ export async function getVideoAnalyses(dateStr, category = null) {
           platform, video_id as "videoId", url, title, thumbnail, category, 
           date_str as "dateStr", analysis_json as "analysisJson",
           view_count as "viewCount", like_count as "likeCount", 
-          comment_count as "commentCount", description, comments
+          comment_count as "commentCount", description, comments,
+          notion_url as "notionUrl"
         FROM video_analyses 
         WHERE date_str = ${dateStr}
         ORDER BY created_at DESC;
@@ -280,7 +284,8 @@ export async function getPagedVideoAnalyses(category = null, page = 1, limit = 1
           platform, video_id as "videoId", url, title, thumbnail, category, 
           date_str as "dateStr", analysis_json as "analysisJson",
           view_count as "viewCount", like_count as "likeCount", 
-          comment_count as "commentCount", description, comments
+          comment_count as "commentCount", description, comments,
+          notion_url as "notionUrl"
         FROM video_analyses 
         ORDER BY created_at DESC
         LIMIT ${limit} OFFSET ${offset};
@@ -295,5 +300,28 @@ export async function getPagedVideoAnalyses(category = null, page = 1, limit = 1
   } catch (error) {
     console.error('Fetch paged video analyses error:', error);
     return { rows: [], totalCount: 0 };
+  }
+}
+
+export async function updateVideoNotionUrl(videoId, dateStr, notionUrl) {
+  if (!isProd) {
+    console.log('Mock Update Notion URL:', videoId, notionUrl);
+    if (global.analysisDb) {
+      const video = global.analysisDb.find(v => v.video_id === videoId && v.date_str === dateStr);
+      if (video) video.notion_url = notionUrl;
+    }
+    return true;
+  }
+
+  try {
+    await sql`
+      UPDATE video_analyses 
+      SET notion_url = ${notionUrl}
+      WHERE video_id = ${videoId} AND date_str = ${dateStr};
+    `;
+    return true;
+  } catch (error) {
+    console.error('Update notion url error:', error);
+    return false;
   }
 }
