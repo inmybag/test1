@@ -14,6 +14,8 @@ export default function AnalysisPage() {
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [mounted, setMounted] = useState(false);
+  const [isSendingToNotion, setIsSendingToNotion] = useState(false);
+  const [notionUrl, setNotionUrl] = useState(null);
 
   useEffect(() => {
     setMounted(true);
@@ -45,6 +47,43 @@ export default function AnalysisPage() {
       console.error(err);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const sendToNotion = async (video) => {
+    if (isSendingToNotion) return;
+    setIsSendingToNotion(true);
+    setNotionUrl(null);
+
+    try {
+      const response = await fetch('/api/notion/create', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title: video.title,
+          platform: video.platform,
+          category: video.category,
+          score: video.analysisJson.score,
+          hook: video.analysisJson.hook,
+          commentInsight: video.analysisJson.commentInsight,
+          planning: video.analysisJson.planning,
+          url: video.url,
+          thumbnail: video.thumbnail
+        })
+      });
+
+      const result = await response.json();
+      if (result.success) {
+        setNotionUrl(result.url);
+        alert('🚀 마케팅부문 노션 페이지로 성공적으로 전송되었습니다!');
+      } else {
+        alert('❌ 노션 전송 중 오류가 발생했습니다: ' + result.error);
+      }
+    } catch (error) {
+      console.error(error);
+      alert('❌ 서버 연결에 실패했습니다.');
+    } finally {
+      setIsSendingToNotion(false);
     }
   };
 
@@ -131,40 +170,102 @@ export default function AnalysisPage() {
 
   const renderPlanningContent = (text) => {
     if (!text) return null;
+    
+    // Markdown table parsing
     const lines = text.split('\n');
-    return lines.map((line, idx) => {
-      const trimmed = line.trim();
-      if (trimmed.startsWith('## ')) {
-        return <h2 key={idx} className="report-h2">{trimmed.replace('## ', '')}</h2>;
+    const result = [];
+    let tableRows = [];
+    let isTable = false;
+
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i].trim();
+      
+      if (line.startsWith('|') && line.endsWith('|')) {
+        if (line.includes('---')) continue; // Skip separator line
+        isTable = true;
+        const filteredCells = line.split('|').slice(1, -1).map(c => c.trim());
+        tableRows.push(filteredCells);
+        continue;
+      } else if (isTable) {
+        // End of table - Render accumulated rows
+        if (tableRows.length > 0) {
+          result.push(
+            <div key={`table-${i}`} className="report-table-wrapper">
+              <table className="report-table">
+                <thead>
+                  <tr>
+                    {tableRows[0].map((cell, idx) => <th key={idx}>{cell}</th>)}
+                  </tr>
+                </thead>
+                <tbody>
+                  {tableRows.slice(1).map((row, rIdx) => (
+                    <tr key={rIdx}>
+                      {row.map((cell, cIdx) => <td key={cIdx}>{cell}</td>)}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          );
+        }
+        tableRows = [];
+        isTable = false;
       }
-      if (trimmed.startsWith('### ')) {
-        return <h3 key={idx} className="report-h3">{trimmed.replace('### ', '')}</h3>;
-      }
-      if (trimmed.startsWith('- ')) {
-        const content = trimmed.replace('- ', '');
+
+      if (line.startsWith('## ')) {
+        result.push(<h2 key={i} className="report-h2">{line.replace('## ', '')}</h2>);
+      } else if (line.startsWith('### ')) {
+        result.push(<h3 key={i} className="report-h3">{line.replace('### ', '')}</h3>);
+      } else if (line.startsWith('- ')) {
+        const content = line.replace('- ', '');
         const parts = content.split('**');
-        return (
-          <div key={idx} className="report-list-item">
+        result.push(
+          <div key={i} className="report-list-item">
             <span className="bullet">•</span>
             <span>
-              {parts.map((part, i) => (
-                i % 2 === 1 ? <strong key={i} className="report-bold">{part}</strong> : part
+              {parts.map((part, pIdx) => (
+                pIdx % 2 === 1 ? <strong key={pIdx} className="report-bold">{part}</strong> : part
               ))}
             </span>
           </div>
         );
+      } else if (line.length > 0) {
+        const parts = line.split('**');
+        result.push(
+          <p key={i} className="report-p">
+            {parts.map((part, pIdx) => (
+              pIdx % 2 === 1 ? <strong key={pIdx} className="report-bold">{part}</strong> : part
+            ))}
+          </p>
+        );
+      } else {
+        result.push(<div key={i} className="report-spacing" />);
       }
-      if (trimmed.length === 0) return <div key={idx} className="report-spacing" />;
-      
-      const parts = line.split('**');
-      return (
-        <p key={idx} className="report-p">
-          {parts.map((part, i) => (
-            i % 2 === 1 ? <strong key={i} className="report-bold">{part}</strong> : part
-          ))}
-        </p>
+    }
+
+    // Handled table at the very end
+    if (isTable && tableRows.length > 0) {
+      result.push(
+        <div key="table-end" className="report-table-wrapper">
+          <table className="report-table">
+            <thead>
+              <tr>
+                {tableRows[0].map((cell, idx) => <th key={idx}>{cell}</th>)}
+              </tr>
+            </thead>
+            <tbody>
+              {tableRows.slice(1).map((row, rIdx) => (
+                <tr key={rIdx}>
+                  {row.map((cell, cIdx) => <td key={cIdx}>{cell}</td>)}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       );
-    });
+    }
+
+    return result;
   };
 
   if (!mounted) {
@@ -455,9 +556,26 @@ export default function AnalysisPage() {
                   </div>
 
                   <div className="insights-footer">
-                    <a href={selectedVideo.url} target="_blank" rel="noopener noreferrer" className="btn-primary">
-                      원본 채널 방문하기 <ExternalLink size={18} />
-                    </a>
+                    <div className="footer-actions">
+                      <a href={selectedVideo.url} target="_blank" rel="noopener noreferrer" className="btn-visit">
+                        원본 채널 방문 <ExternalLink size={16} />
+                      </a>
+                      
+                      {notionUrl ? (
+                        <a href={notionUrl} target="_blank" rel="noopener noreferrer" className="btn-notion success">
+                          노션 페이지 확인하기 <ArrowRight size={16} />
+                        </a>
+                      ) : (
+                        <button 
+                          onClick={() => sendToNotion(selectedVideo)} 
+                          className={`btn-notion ${isSendingToNotion ? 'loading' : ''}`}
+                          disabled={isSendingToNotion}
+                        >
+                          {isSendingToNotion ? '노션으로 전송 중...' : '마케팅부문 노션 페이지로 보내기'}
+                          {!isSendingToNotion && <Share2 size={16} />}
+                        </button>
+                      )}
+                    </div>
                   </div>
                 </div>
               </div>
@@ -1055,6 +1173,50 @@ export default function AnalysisPage() {
         .report-bold { color: #fff; font-weight: 800; text-decoration: underline decoration-rgba(234, 179, 8, 0.3) underline-offset-4; }
         .report-spacing { height: 1.5rem; }
         
+        .report-table-wrapper {
+          margin: 2rem 0;
+          overflow-x: auto;
+          border-radius: 1.2rem;
+          border: 1px solid rgba(255, 255, 255, 0.1);
+          background: rgba(255, 255, 255, 0.02);
+          box-shadow: inset 0 0 20px rgba(0,0,0,0.2);
+        }
+        
+        .report-table {
+          width: 100%;
+          border-collapse: collapse;
+          font-size: 0.95rem;
+          text-align: left;
+        }
+        
+        .report-table th {
+          background: rgba(234, 179, 8, 0.1);
+          color: #facc15;
+          padding: 1.2rem 1.5rem;
+          font-weight: 850;
+          border-bottom: 1px solid rgba(234, 179, 8, 0.2);
+          white-space: nowrap;
+          text-transform: uppercase;
+          letter-spacing: 0.05em;
+        }
+        
+        .report-table td {
+          padding: 1.2rem 1.5rem;
+          border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+          color: #cbd5e1;
+          vertical-align: top;
+          line-height: 1.6;
+        }
+        
+        .report-table tr:last-child td {
+          border-bottom: none;
+        }
+        
+        .report-table tr:hover td {
+          background: rgba(255, 255, 255, 0.04);
+          color: #fff;
+        }
+        
         .comments-list { display: flex; flex-direction: column; gap: 1rem; }
         .comment-item {
           background: rgba(255, 255, 255, 0.02);
@@ -1083,16 +1245,42 @@ export default function AnalysisPage() {
         .takeaway-item:hover { transform: translateX(10px); border-color: rgba(168, 85, 247, 0.3); }
         .takeaway-icon { color: #a855f7; display: flex; }
 
-        .insights-footer { padding: 3rem; border-top: 1px solid rgba(255, 255, 255, 0.08); }
-        .btn-primary {
-          display: flex; align-items: center; justify-content: center; gap: 1rem;
-          width: 100%; padding: 1.5rem; border-radius: 1.5rem;
-          background: #fff; color: #000; font-weight: 800; text-decoration: none;
-          transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
-          font-size: 1.1rem;
-          box-shadow: 0 20px 40px -10px rgba(255,255,255,0.2);
+        .insights-footer { padding: 2rem; border-top: 1px solid rgba(255, 255, 255, 0.08); background: rgba(0,0,0,0.2); }
+        .footer-actions { display: flex; gap: 1rem; width: 100%; }
+        
+        .btn-visit {
+          flex: 1;
+          display: flex; align-items: center; justify-content: center; gap: 0.8rem;
+          padding: 1.2rem; border-radius: 1.2rem;
+          background: rgba(255, 255, 255, 0.05); color: #94a3b8; font-weight: 700; text-decoration: none;
+          transition: all 0.3s; border: 1px solid rgba(255, 255, 255, 0.1);
+          font-size: 0.95rem;
         }
-        .btn-primary:hover { transform: translateY(-5px); box-shadow: 0 30px 50px -10px rgba(255,255,255,0.3); }
+        .btn-visit:hover { background: rgba(255, 255, 255, 0.1); color: #fff; border-color: rgba(255, 255, 255, 0.2); }
+
+        .btn-notion {
+          flex: 2;
+          display: flex; align-items: center; justify-content: center; gap: 0.8rem;
+          padding: 1.2rem; border-radius: 1.2rem;
+          background: #fff; color: #000; font-weight: 800; border: none;
+          cursor: pointer; transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+          font-size: 1rem;
+          box-shadow: 0 15px 30px -10px rgba(255, 255, 255, 0.3);
+        }
+        .btn-notion:hover:not(:disabled) { transform: translateY(-3px); box-shadow: 0 20px 40px -10px rgba(255, 255, 255, 0.4); }
+        .btn-notion:disabled { opacity: 0.6; cursor: not-allowed; }
+        
+        .btn-notion.success {
+          background: #22c55e;
+          color: #fff;
+          box-shadow: 0 15px 30px -10px rgba(34, 197, 94, 0.4);
+        }
+        
+        .btn-notion.loading {
+          background: #f1f5f9;
+          color: #64748b;
+          box-shadow: none;
+        }
 
         /* Loaders & Empty states */
         .loader-container { 
