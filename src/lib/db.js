@@ -213,13 +213,16 @@ export async function getVideoAnalyses(dateStr, category = null) {
   }
 }
 
-export async function getPagedVideoAnalyses(category = null, page = 1, limit = 12) {
+export async function getPagedVideoAnalyses(category = null, page = 1, limit = 12, platform = null) {
   const offset = (page - 1) * limit;
 
   if (!isProd) {
     let results = global.analysisDb || [];
     if (category) {
       results = results.filter(item => item.category === category);
+    }
+    if (platform) {
+      results = results.filter(item => item.platform === platform);
     }
     const totalCount = results.length;
     results.sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0));
@@ -228,10 +231,25 @@ export async function getPagedVideoAnalyses(category = null, page = 1, limit = 1
   }
 
   try {
-    if (category) {
-      const countRes = await sql`SELECT count(*) FROM video_analyses WHERE category = ${category}`;
-      const count = countRes.rows[0].count;
-      const { rows } = await sql`
+    let countQuery;
+    let dataQuery;
+    
+    if (category && platform) {
+      countQuery = sql`SELECT count(*) FROM video_analyses WHERE category = ${category} AND platform = ${platform}`;
+      dataQuery = sql`
+        SELECT 
+          platform, video_id as "videoId", url, title, thumbnail, category, 
+          date_str as "dateStr", analysis_json as "analysisJson",
+          view_count as "viewCount", like_count as "likeCount", 
+          comment_count as "commentCount", description, comments
+        FROM video_analyses 
+        WHERE category = ${category} AND platform = ${platform}
+        ORDER BY created_at DESC
+        LIMIT ${limit} OFFSET ${offset};
+      `;
+    } else if (category && !platform) {
+      countQuery = sql`SELECT count(*) FROM video_analyses WHERE category = ${category}`;
+      dataQuery = sql`
         SELECT 
           platform, video_id as "videoId", url, title, thumbnail, category, 
           date_str as "dateStr", analysis_json as "analysisJson",
@@ -242,11 +260,22 @@ export async function getPagedVideoAnalyses(category = null, page = 1, limit = 1
         ORDER BY created_at DESC
         LIMIT ${limit} OFFSET ${offset};
       `;
-      return { rows, totalCount: parseInt(count, 10) };
+    } else if (!category && platform) {
+      countQuery = sql`SELECT count(*) FROM video_analyses WHERE platform = ${platform}`;
+      dataQuery = sql`
+        SELECT 
+          platform, video_id as "videoId", url, title, thumbnail, category, 
+          date_str as "dateStr", analysis_json as "analysisJson",
+          view_count as "viewCount", like_count as "likeCount", 
+          comment_count as "commentCount", description, comments
+        FROM video_analyses 
+        WHERE platform = ${platform}
+        ORDER BY created_at DESC
+        LIMIT ${limit} OFFSET ${offset};
+      `;
     } else {
-      const countRes = await sql`SELECT count(*) FROM video_analyses`;
-      const count = countRes.rows[0].count;
-      const { rows } = await sql`
+      countQuery = sql`SELECT count(*) FROM video_analyses`;
+      dataQuery = sql`
         SELECT 
           platform, video_id as "videoId", url, title, thumbnail, category, 
           date_str as "dateStr", analysis_json as "analysisJson",
@@ -256,8 +285,13 @@ export async function getPagedVideoAnalyses(category = null, page = 1, limit = 1
         ORDER BY created_at DESC
         LIMIT ${limit} OFFSET ${offset};
       `;
-      return { rows, totalCount: parseInt(count, 10) };
     }
+
+    const countRes = await countQuery;
+    const count = countRes.rows[0].count;
+    const { rows } = await dataQuery;
+    
+    return { rows, totalCount: parseInt(count, 10) };
   } catch (error) {
     console.error('Fetch paged video analyses error:', error);
     return { rows: [], totalCount: 0 };

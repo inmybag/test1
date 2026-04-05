@@ -7,6 +7,7 @@ export default function AnalysisPage() {
   const [videos, setVideos] = useState([]);
   const [loading, setLoading] = useState(true);
   const [category, setCategory] = useState('All');
+  const [platform, setPlatform] = useState('All');
   const [selectedVideo, setSelectedVideo] = useState(null);
   const [hoveredId, setHoveredId] = useState(null);
 
@@ -15,17 +16,20 @@ export default function AnalysisPage() {
 
   useEffect(() => {
     setPage(1);
-  }, [category]);
+  }, [category, platform]);
 
   useEffect(() => {
     fetchResults();
-  }, [category, page]);
+  }, [category, platform, page]);
 
   const fetchResults = async () => {
     setLoading(true);
     try {
-      const catParam = category === 'All' ? '' : `&category=${category}`;
-      const response = await fetch(`/api/analysis/results?page=${page}&limit=12${catParam}`);
+      let queryParams = `?page=${page}&limit=12`;
+      if (category !== 'All') queryParams += `&category=${category}`;
+      if (platform !== 'All') queryParams += `&platform=${platform}`;
+      
+      const response = await fetch(`/api/analysis/results${queryParams}`);
       const data = await response.json();
       setVideos(data.results || []);
       if (data.pagination) {
@@ -51,30 +55,23 @@ export default function AnalysisPage() {
 
   const getEmbedUrl = (video) => {
     if (!video || !video.url) return '';
-    const { platform, videoId, url } = video;
+    const { videoId, url } = video;
     
-    // YouTube (실제 YouTube URL이면 embed)
+    // YouTube (실제 YouTube URL이면 embed, 기존 fallback 데이터 포함)
     if (url.includes('youtube.com') || url.includes('youtu.be')) {
       let id = videoId;
       if (!id || id === 'undefined') {
         const match = url.match(/(?:shorts\/|v=|\/)([0-9A-Za-z_-]{11})/);
         id = match ? match[1] : '';
       }
+      // 옛날 데이터를 위해 videoId 길이를 확인
+      if (id.length < 11 && videoId && videoId.length >= 11) id = videoId;
       return `https://www.youtube.com/embed/${id}?autoplay=1&rel=0&modestbranding=1`;
-    }
-    
-    // TikTok/Instagram의 경우 YouTube URL 기반이므로 YouTube embed 사용
-    // (fetch_shortform.py에서 YouTube 검색으로 수집된 영상)
-    if (platform === 'tiktok' || platform === 'instagram') {
-      // video_id가 YouTube ID인 경우 YouTube embed
-      if (videoId && videoId.length === 11) {
-        return `https://www.youtube.com/embed/${videoId}?autoplay=1&rel=0`;
-      }
     }
     
     // TikTok 직접 URL
     if (url.includes('tiktok.com')) {
-      const id = url.split('/').pop().split('?')[0];
+      let id = url.split('/').pop().split('?')[0];
       return `https://www.tiktok.com/embed/v2/${id}`;
     }
     
@@ -111,6 +108,44 @@ export default function AnalysisPage() {
     );
   };
 
+  const renderPlanningContent = (text) => {
+    if (!text) return null;
+    const lines = text.split('\n');
+    return lines.map((line, idx) => {
+      const trimmed = line.trim();
+      if (trimmed.startsWith('## ')) {
+        return <h2 key={idx} className="report-h2">{trimmed.replace('## ', '')}</h2>;
+      }
+      if (trimmed.startsWith('### ')) {
+        return <h3 key={idx} className="report-h3">{trimmed.replace('### ', '')}</h3>;
+      }
+      if (trimmed.startsWith('- ')) {
+        const content = trimmed.replace('- ', '');
+        const parts = content.split('**');
+        return (
+          <div key={idx} className="report-list-item">
+            <span className="bullet">•</span>
+            <span>
+              {parts.map((part, i) => (
+                i % 2 === 1 ? <strong key={i} className="report-bold">{part}</strong> : part
+              ))}
+            </span>
+          </div>
+        );
+      }
+      if (trimmed.length === 0) return <div key={idx} className="report-spacing" />;
+      
+      const parts = line.split('**');
+      return (
+        <p key={idx} className="report-p">
+          {parts.map((part, i) => (
+            i % 2 === 1 ? <strong key={i} className="report-bold">{part}</strong> : part
+          ))}
+        </p>
+      );
+    });
+  };
+
   return (
     <main className="analysis-page custom-scrollbar">
       <div className="hero-blob"></div>
@@ -126,17 +161,30 @@ export default function AnalysisPage() {
             <p className="subtitle">경쟁사 성과 분석 기반 애경산업 전문 크리에이티브 기획 제안</p>
           </div>
 
-          <nav className="category-nav">
-            {['All', 'Beauty', 'Household'].map(cat => (
-              <button
-                key={cat}
-                onClick={() => setCategory(cat)}
-                className={`category-btn ${category === cat ? 'active' : ''}`}
-              >
-                {cat === 'All' ? '전체 트렌드' : cat === 'Beauty' ? '뷰티 경쟁사' : '생활용품 경쟁사'}
-              </button>
-            ))}
-          </nav>
+          <div className="filter-controls">
+            <nav className="category-nav">
+              {['All', 'Beauty', 'Household'].map(cat => (
+                <button
+                  key={cat}
+                  onClick={() => setCategory(cat)}
+                  className={`category-btn ${category === cat ? 'active' : ''}`}
+                >
+                  {cat === 'All' ? '전체 카테고리' : cat === 'Beauty' ? '뷰티 경쟁사' : '생활용품 경쟁사'}
+                </button>
+              ))}
+            </nav>
+            <nav className="category-nav platform-nav">
+              {['All', 'youtube', 'instagram', 'tiktok'].map(plat => (
+                <button
+                  key={plat}
+                  onClick={() => setPlatform(plat)}
+                  className={`category-btn ${platform === plat ? 'active' : ''}`}
+                >
+                  {plat === 'All' ? '전체 플랫폼' : plat === 'youtube' ? '유튜브' : plat === 'instagram' ? '인스타그램' : '틱톡'}
+                </button>
+              ))}
+            </nav>
+          </div>
         </header>
 
         {loading ? (
@@ -326,8 +374,8 @@ export default function AnalysisPage() {
                           <Lightbulb size={20} style={{ color: '#facc15' }} />
                           <span>브랜드별 쇼츠 기획 리포트</span>
                         </div>
-                        <div className="planning-content whitespace-pre-wrap premium-report">
-                          {selectedVideo.analysisJson.planning || "기획안을 생성 중입니다..."}
+                        <div className="planning-content premium-report">
+                          {renderPlanningContent(selectedVideo.analysisJson.planning) || <p>기획안을 생성 중입니다...</p>}
                         </div>
                       </div>
                     </div>
@@ -430,6 +478,14 @@ export default function AnalysisPage() {
           .analysis-header { flex-direction: row; align-items: flex-end; }
         }
 
+        .filter-controls {
+          display: flex;
+          flex-direction: column;
+          gap: 1rem;
+          width: 100%;
+        }
+        @media (min-width: 1024px) { .filter-controls { align-items: flex-end; width: auto; } }
+
         .badge-premium {
           display: inline-flex;
           align-items: center;
@@ -456,18 +512,28 @@ export default function AnalysisPage() {
           letter-spacing: -0.04em;
           line-height: 1;
         }
-        .subtitle { color: #64748b; font-size: 1.25rem; font-weight: 400; max-width: 600px; line-height: 1.6; }
+        @media (max-width: 768px) {
+          .gradient-text { font-size: 3rem; word-break: keep-all; }
+        }
+        
+        .subtitle { color: #64748b; font-size: 1.25rem; font-weight: 400; max-width: 600px; line-height: 1.6; word-break: keep-all; }
         
         .category-nav {
           display: flex;
+          flex-wrap: wrap;
+          gap: 0.5rem;
           background: rgba(255, 255, 255, 0.02);
           border: 1px solid rgba(255, 255, 255, 0.05);
           padding: 0.4rem;
           border-radius: 1.2rem;
           backdrop-filter: blur(20px);
         }
+        .platform-nav {
+          background: rgba(59, 130, 246, 0.05);
+        }
+        
         .category-btn {
-          padding: 0.8rem 2.2rem;
+          padding: 0.8rem 1.5rem;
           border-radius: 0.9rem;
           border: none;
           background: transparent;
@@ -476,7 +542,10 @@ export default function AnalysisPage() {
           cursor: pointer;
           transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
           font-size: 0.95rem;
+          white-space: nowrap;
+          word-break: keep-all;
         }
+        @media (min-width: 768px) { .category-btn { padding: 0.8rem 2.2rem; } }
         .category-btn:hover { color: #fff; background: rgba(255,255,255,0.03); }
         .category-btn.active {
           background: #3b82f6;
@@ -711,8 +780,11 @@ export default function AnalysisPage() {
           display: flex;
           align-items: center;
           justify-content: center;
-          padding: 2rem;
+          padding: 1rem;
           animation: fadeIn 0.4s ease-out;
+        }
+        @media (min-width: 768px) {
+          .modal-overlay { padding: 2rem; }
         }
         @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
 
@@ -720,46 +792,52 @@ export default function AnalysisPage() {
           position: relative;
           width: 100%;
           max-width: 1400px;
-          height: 90vh;
+          height: 95vh;
           background: #0a0a0c;
-          border-radius: 2.5rem;
+          border-radius: 1.5rem;
           border: 1px solid rgba(255, 255, 255, 0.08);
           overflow: hidden;
           display: flex;
           box-shadow: 0 60px 120px -30px rgba(0, 0, 0, 0.9);
           animation: modalSlide 0.5s cubic-bezier(0.16, 1, 0.3, 1);
         }
+        @media (min-width: 768px) {
+          .modal-container { height: 90vh; border-radius: 2.5rem; }
+        }
         @keyframes modalSlide { from { transform: scale(0.9) translateY(40px); opacity: 0; } to { transform: scale(1) translateY(0); opacity: 1; } }
 
         .modal-close {
           position: absolute;
-          top: 2rem;
-          right: 2rem;
+          top: 1rem;
+          right: 1rem;
           background: rgba(255,255,255,0.05);
           border: 1px solid rgba(255,255,255,0.1);
           color: #fff;
           cursor: pointer;
           z-index: 100;
-          padding: 0.8rem;
-          border-radius: 1.2rem;
+          padding: 0.6rem;
+          border-radius: 1rem;
           display: flex;
           transition: all 0.3s;
         }
+        @media (min-width: 768px) {
+          .modal-close { top: 2rem; right: 2rem; padding: 0.8rem; border-radius: 1.2rem; }
+        }
         .modal-close:hover { background: #ef4444; border-color: #ef4444; transform: rotate(90deg); }
 
-        .modal-flex { display: flex; flex-direction: column; width: 100%; height: 100%; }
-        @media (min-width: 1024px) { .modal-flex { flex-direction: row; } }
+        .modal-flex { display: flex; flex-direction: column; width: 100%; height: 100%; overflow-y: auto; }
+        @media (min-width: 1024px) { .modal-flex { flex-direction: row; overflow-y: hidden; } }
 
         .video-section {
-          flex: 1;
+          flex: none;
           background: #000;
           display: flex;
           align-items: center;
           justify-content: center;
-          min-height: 45%;
+          height: 60vh;
           position: relative;
         }
-        @media (min-width: 1024px) { .video-section { flex: 0 0 45%; min-height: 100%; } }
+        @media (min-width: 1024px) { .video-section { flex: 0 0 45%; height: 100%; } }
 
         .player-wrapper { width: 100%; height: 100%; position: relative; }
         .embed-frame { position: absolute; top: 0; left: 0; width: 100%; height: 100%; border: none; }
@@ -777,8 +855,8 @@ export default function AnalysisPage() {
           text-align: center;
           z-index: 10;
         }
-        .embed-fallback p { font-size: 0.8rem; color: #94a3b8; margin-bottom: 0.5rem; }
-        .btn-fallback { font-size: 0.9rem; font-weight: 800; color: #3b82f6; text-decoration: none; display: flex; align-items: center; gap: 0.5rem; justify-content: center; }
+        .embed-fallback p { font-size: 0.8rem; color: #94a3b8; margin-bottom: 0.5rem; word-break: keep-all; }
+        .btn-fallback { font-size: 0.9rem; font-weight: 800; color: #3b82f6; text-decoration: none; display: flex; align-items: center; gap: 0.5rem; justify-content: center; white-space: nowrap; }
 
         .insights-section {
           width: 100%;
@@ -786,21 +864,30 @@ export default function AnalysisPage() {
           display: flex;
           flex-direction: column;
           border-top: 1px solid rgba(255, 255, 255, 0.08);
+          flex: none;
         }
-        @media (min-width: 1024px) { .insights-section { width: 55%; border-top: none; border-left: 1px solid rgba(255, 255, 255, 0.08); } }
+        @media (min-width: 1024px) { .insights-section { width: 55%; border-top: none; border-left: 1px solid rgba(255, 255, 255, 0.08); flex: 1; overflow: hidden; } }
 
         .insights-header {
-          padding: 2.2rem 3rem;
+          padding: 1.5rem 1.5rem;
           display: flex;
-          justify-content: space-between;
-          align-items: center;
+          flex-direction: column;
+          gap: 1rem;
           border-bottom: 1px solid rgba(255, 255, 255, 0.04);
         }
-        .platform-meta { display: flex; align-items: center; gap: 1rem; font-size: 0.75rem; font-weight: 900; color: #475569; letter-spacing: 0.15em; }
-        .engagement-stats { display: flex; gap: 2rem; }
-        .stat { display: flex; align-items: center; gap: 0.6rem; color: #94a3b8; font-size: 0.95rem; font-weight: 700; background: rgba(255,255,255,0.03); padding: 0.4rem 0.8rem; border-radius: 0.6rem; }
+        @media (min-width: 768px) {
+          .insights-header { padding: 2.2rem 3rem; flex-direction: row; justify-content: space-between; align-items: center; gap: 0; }
+        }
+        
+        .platform-meta { display: flex; align-items: center; gap: 1rem; font-size: 0.75rem; font-weight: 900; color: #475569; letter-spacing: 0.15em; word-break: keep-all; }
+        .engagement-stats { display: flex; gap: 1rem; }
+        @media (min-width: 768px) { .engagement-stats { gap: 2rem; } }
+        
+        .stat { display: flex; align-items: center; gap: 0.6rem; color: #94a3b8; font-size: 0.95rem; font-weight: 700; background: rgba(255,255,255,0.03); padding: 0.4rem 0.8rem; border-radius: 0.6rem; white-space: nowrap; }
 
-        .insights-body { flex: 1; padding: 3rem; overflow-y: auto; }
+        .insights-body { padding: 1.5rem; overflow-y: visible; flex: none; }
+        @media (min-width: 768px) { .insights-body { padding: 3rem; } }
+        @media (min-width: 1024px) { .insights-body { overflow-y: auto; flex: 1; } }
         .modal-title { font-size: 2rem; font-weight: 900; margin-bottom: 3.5rem; line-height: 1.3; color: #fff; letter-spacing: -0.02em; }
 
         .analysis-block { margin-bottom: 4rem; }
@@ -842,11 +929,36 @@ export default function AnalysisPage() {
           background: linear-gradient(135deg, rgba(234, 179, 8, 0.05) 0%, rgba(13, 13, 16, 1) 100%);
           border: 1px solid rgba(234, 179, 8, 0.15);
           border-radius: 2rem;
-          padding: 2.5rem;
+          padding: 1.5rem;
         }
-        .planning-header { display: flex; align-items: center; gap: 1rem; margin-bottom: 2rem; color: #eab308; font-weight: 900; font-size: 1rem; }
-        .planning-content { color: #d1d5db; line-height: 1.9; font-size: 1.1rem; }
-        .premium-report { border-left: 1px solid rgba(234, 179, 8, 0.2); padding-left: 1.5rem; }
+        @media (min-width: 768px) { .planning-box { padding: 2.5rem; } }
+        .planning-header { display: flex; align-items: center; gap: 1rem; margin-bottom: 2rem; color: #eab308; font-weight: 900; font-size: 1rem; letter-spacing: 0.1em; }
+        .planning-content { color: #d1d5db; line-height: 1.8; font-size: 1rem; }
+        @media (min-width: 768px) { .planning-content { font-size: 1.1rem; } }
+        
+        .premium-report { border-left: 2px solid rgba(234, 179, 8, 0.3); padding-left: 1.5rem; }
+        
+        .report-h2 { 
+          font-size: 1.6rem; font-weight: 950; color: #fff; margin: 3rem 0 1.5rem 0; 
+          background: linear-gradient(to right, #fff, rgba(255,255,255,0.4));
+          -webkit-background-clip: text;
+          -webkit-text-fill-color: transparent;
+          letter-spacing: -0.02em;
+        }
+        .report-h2:first-of-type { margin-top: 0; }
+        
+        .report-h3 { 
+          font-size: 1.15rem; font-weight: 800; color: #facc15; margin: 2rem 0 1rem 0; 
+          padding: 0.6rem 1.2rem; background: rgba(250, 204, 21, 0.1); border-radius: 0.8rem;
+          width: fit-content;
+          border: 1px solid rgba(250, 204, 21, 0.2);
+        }
+        
+        .report-p { margin-bottom: 1rem; color: #94a3b8; }
+        .report-list-item { display: flex; gap: 0.75rem; margin-bottom: 0.8rem; align-items: flex-start; color: #cbd5e1; }
+        .bullet { color: #eab308; font-weight: 900; }
+        .report-bold { color: #fff; font-weight: 800; text-decoration: underline decoration-rgba(234, 179, 8, 0.3) underline-offset-4; }
+        .report-spacing { height: 1.5rem; }
         
         .comments-list { display: flex; flex-direction: column; gap: 1rem; }
         .comment-item {
