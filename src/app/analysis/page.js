@@ -80,8 +80,11 @@ export default function AnalysisPage() {
     
     // Instagram 직접 URL
     if (url.includes('instagram.com')) {
-      const id = url.split('/reel/')[1]?.split('/')[0] || url.split('/p/')[1]?.split('/')[0];
-      return `https://www.instagram.com/reel/${id}/embed`;
+      let id = videoId;
+      if (!id || id === 'undefined') {
+        id = url.split('/reel/')[1]?.split('/')[0] || url.split('/p/')[1]?.split('/')[0];
+      }
+      return `https://www.instagram.com/p/${id}/embed/`;
     }
     
     return url;

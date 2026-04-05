@@ -20,6 +20,8 @@
     "next": "latest",
     "puppeteer": "^24.40.0",
     "puppeteer-core": "^24.39.1",
+    "puppeteer-extra": "^3.3.6",
+    "puppeteer-extra-plugin-stealth": "^2.11.2",
     "react": "latest",
     "react-chartjs-2": "^5.2.0",
     "react-dom": "latest",

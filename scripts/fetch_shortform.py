@@ -322,17 +322,17 @@ def main():
         total += len(yt_videos)
         time.sleep(2)   # 요청 간 딜레이
 
-        # 2. Instagram Reels
-        ig_videos = fetch_instagram_reels(en, ko, cat, COUNTS['instagram'])
-        save_to_db(ig_videos)
-        total += len(ig_videos)
-        time.sleep(2)
+        # 2. Instagram Reels (이제 Node.js Puppeteer가 담당)
+        # ig_videos = fetch_instagram_reels(en, ko, cat, COUNTS['instagram'])
+        # save_to_db(ig_videos)
+        # total += len(ig_videos)
+        # time.sleep(2)
 
-        # 3. TikTok
-        tt_videos = fetch_tiktok(en, ko, cat, COUNTS['tiktok'])
-        save_to_db(tt_videos)
-        total += len(tt_videos)
-        time.sleep(2)
+        # 3. TikTok (이제 Node.js Puppeteer가 담당)
+        # tt_videos = fetch_tiktok(en, ko, cat, COUNTS['tiktok'])
+        # save_to_db(tt_videos)
+        # total += len(tt_videos)
+        # time.sleep(2)
 
     print("\n" + "=" * 60)
     print(f"✅ 전체 크롤링 완료: 총 {total}개 영상 수집 및 저장")
