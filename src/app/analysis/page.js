@@ -173,14 +173,21 @@ export default function AnalysisPage() {
                 </button>
               ))}
             </nav>
-            <nav className="category-nav platform-nav">
-              {['All', 'youtube', 'instagram', 'tiktok'].map(plat => (
+            
+            <nav className="platform-nav">
+              {[
+                { id: 'All', label: '전체 플랫폼', icon: <Sparkles size={14} /> },
+                { id: 'youtube', label: '유튜브', icon: <Youtube size={14} /> },
+                { id: 'instagram', label: '인스타그램', icon: <Instagram size={14} /> },
+                { id: 'tiktok', label: '틱톡', icon: <Music size={14} /> }
+              ].map(plat => (
                 <button
-                  key={plat}
-                  onClick={() => setPlatform(plat)}
-                  className={`category-btn ${platform === plat ? 'active' : ''}`}
+                  key={plat.id}
+                  onClick={() => setPlatform(plat.id)}
+                  className={`platform-btn ${platform === plat.id ? 'active' : ''} ${plat.id}`}
                 >
-                  {plat === 'All' ? '전체 플랫폼' : plat === 'youtube' ? '유튜브' : plat === 'instagram' ? '인스타그램' : '틱톡'}
+                  {plat.icon}
+                  <span>{plat.label}</span>
                 </button>
               ))}
             </nav>
@@ -481,10 +488,23 @@ export default function AnalysisPage() {
         .filter-controls {
           display: flex;
           flex-direction: column;
-          gap: 1rem;
+          gap: 1.5rem;
           width: 100%;
+          align-items: flex-start;
         }
-        @media (min-width: 1024px) { .filter-controls { align-items: flex-end; width: auto; } }
+        @media (min-width: 1024px) { 
+          .filter-controls { 
+            flex-direction: row; 
+            align-items: center; 
+            justify-content: flex-end;
+            width: auto; 
+            background: rgba(255, 255, 255, 0.02);
+            padding: 0.5rem 1rem;
+            border-radius: 1.5rem;
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(20px);
+          } 
+        }
 
         .badge-premium {
           display: inline-flex;
@@ -520,37 +540,76 @@ export default function AnalysisPage() {
         
         .category-nav {
           display: flex;
-          flex-wrap: wrap;
-          gap: 0.5rem;
-          background: rgba(255, 255, 255, 0.02);
-          border: 1px solid rgba(255, 255, 255, 0.05);
-          padding: 0.4rem;
-          border-radius: 1.2rem;
-          backdrop-filter: blur(20px);
-        }
-        .platform-nav {
-          background: rgba(59, 130, 246, 0.05);
+          gap: 0.25rem;
+          background: rgba(255, 255, 255, 0.05);
+          padding: 0.3rem;
+          border-radius: 1rem;
         }
         
         .category-btn {
-          padding: 0.8rem 1.5rem;
-          border-radius: 0.9rem;
+          padding: 0.6rem 1.2rem;
+          border-radius: 0.8rem;
           border: none;
           background: transparent;
-          color: #64748b;
+          color: #94a3b8;
           font-weight: 700;
           cursor: pointer;
-          transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-          font-size: 0.95rem;
+          transition: all 0.3s;
+          font-size: 0.85rem;
           white-space: nowrap;
-          word-break: keep-all;
         }
-        @media (min-width: 768px) { .category-btn { padding: 0.8rem 2.2rem; } }
-        .category-btn:hover { color: #fff; background: rgba(255,255,255,0.03); }
+        .category-btn:hover { color: #fff; }
         .category-btn.active {
           background: #3b82f6;
           color: #fff;
-          box-shadow: 0 12px 30px -8px rgba(59, 130, 246, 0.5);
+          box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
+        }
+
+        .platform-nav {
+          display: flex;
+          gap: 0.5rem;
+          padding: 0.3rem;
+          background: rgba(255, 255, 255, 0.03);
+          border-radius: 1rem;
+          border: 1px solid rgba(255, 255, 255, 0.05);
+        }
+
+        .platform-btn {
+          display: flex;
+          align-items: center;
+          gap: 0.5rem;
+          padding: 0.6rem 1rem;
+          border-radius: 0.8rem;
+          border: 1px solid transparent;
+          background: transparent;
+          color: #64748b;
+          font-weight: 800;
+          font-size: 0.8rem;
+          cursor: pointer;
+          transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+          white-space: nowrap;
+        }
+        .platform-btn:hover { color: #fff; background: rgba(255, 255, 255, 0.05); }
+        
+        /* Platform Brand Colors */
+        .platform-btn.active.youtube {
+          background: rgba(239, 68, 68, 0.1);
+          color: #ef4444;
+          border-color: rgba(239, 68, 68, 0.3);
+        }
+        .platform-btn.active.instagram {
+          background: rgba(236, 72, 153, 0.1);
+          color: #ec4899;
+          border-color: rgba(236, 72, 153, 0.3);
+        }
+        .platform-btn.active.tiktok {
+          background: rgba(34, 211, 238, 0.1);
+          color: #22d3ee;
+          border-color: rgba(34, 211, 238, 0.3);
+        }
+        .platform-btn.active.All {
+          background: #fff;
+          color: #000;
         }
 
         .analysis-grid {
