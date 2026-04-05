@@ -10,6 +10,7 @@ export default function Home() {
   const [rankings, setRankings] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
+  const [maxDate, setMaxDate] = useState('');
   
   // Modal State
   const [modalOpen, setModalOpen] = useState(false);
@@ -26,6 +27,7 @@ export default function Home() {
     }).format(new Date());
     
     setDate(kstDate);
+    setMaxDate(kstDate);
     fetchRankings(kstDate.replace(/-/g, ''));
   }, []);
 
@@ -84,7 +86,7 @@ export default function Home() {
             type="date" 
             value={date} 
             onChange={handleDateChange}
-            max={new Date().toLocaleDateString('en-CA')}
+            max={maxDate}
           />
         </div>
       </header>

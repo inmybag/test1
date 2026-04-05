@@ -124,13 +124,16 @@ def _parse_lines(lines: list, platform_fallback: str, keyword: str, category: st
             # 중간 나머지가 title (title 안에 | 포함 가능)
             title = '|'.join(parts[1:-7]).strip()
 
-            # URL 유효성 검증 - URL이 http로 시작하지 않으면 thumb/url이 뒤바뀐 것
-            if url and not url.startswith('http'):
+            # URL 유효성 검증 - URL이 http로 시작하지 않거나 i.ytimg.com(썸네일 서버) 주소이면 뒤바뀐 것
+            if url and (not url.startswith('http') or 'i.ytimg.com' in url):
                 thumb, url = url, thumb
 
-            # thumbnail이 URL 형태가 아니면 video_id로 YouTube 썸네일 생성
+            # 여전히 thumbnail이 URL 형태가 아니거나 url에 i.ytimg.com이 있으면 보정
+            if url and 'i.ytimg.com' in url:
+                thumb, url = url, f'https://www.youtube.com/watch?v={vid}'
+
             if not thumb or not thumb.startswith('http'):
-                thumb = f'https://i.ytimg.com/vi/{vid}/maxresdefault.jpg'
+                thumb = f'https://i.ytimg.com/vi/{vid}/hqdefault.jpg'
 
             # URL 기반 플랫폼 감지
             if 'tiktok.com' in url:

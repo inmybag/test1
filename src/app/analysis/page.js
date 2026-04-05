@@ -13,6 +13,11 @@ export default function AnalysisPage() {
 
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   useEffect(() => {
     setPage(1);
@@ -57,16 +62,32 @@ export default function AnalysisPage() {
     if (!video || !video.url) return '';
     const { videoId, url } = video;
     
-    // YouTube (실제 YouTube URL이면 embed, 기존 fallback 데이터 포함)
-    if (url.includes('youtube.com') || url.includes('youtu.be')) {
+    // YouTube (실제 YouTube URL이면 embed, 또는 썸네일 URL인 경우 videoId로 복구)
+    if (url.includes('youtube.com') || url.includes('youtu.be') || url.includes('i.ytimg.com')) {
       let id = videoId;
-      if (!id || id === 'undefined') {
-        const match = url.match(/(?:shorts\/|v=|\/)([0-9A-Za-z_-]{11})/);
-        id = match ? match[1] : '';
+      if (!id || id === 'undefined' || id === null || url.includes('i.ytimg.com')) {
+        // i.ytimg.com 경로에서 ID 추출 (예: /vi/_IWfkJDm9iw/...)
+        if (url.includes('i.ytimg.com')) {
+          const viMatch = url.match(/\/vi(?:_webp)?\/([0-9A-Za-z_-]{11})/);
+          if (viMatch) id = viMatch[1];
+        }
+        
+        if (!id || id === 'undefined') {
+          // v= 파라미터 추출
+          const vParam = url.match(/[?&]v=([^&#]+)/);
+          if (vParam) id = vParam[1];
+          else {
+            // shorts/embed/watch 등 다양한 경로에서 11자리 ID 추출
+            const match = url.match(/(?:\/|v=)([0-9A-Za-z_-]{11})/);
+            id = match ? match[1] : '';
+          }
+        }
       }
-      // 옛날 데이터를 위해 videoId 길이를 확인
-      if (id.length < 11 && videoId && videoId.length >= 11) id = videoId;
-      return `https://www.youtube.com/embed/${id}?autoplay=1&rel=0&modestbranding=1`;
+      if (!id) return url;
+      // 11자리만 확실히 필터링
+      const cleanId = id.substring(0, 11);
+      if (cleanId.length < 11) return url;
+      return `https://www.youtube.com/embed/${cleanId}?autoplay=1&rel=0&modestbranding=1`;
     }
     
     // TikTok 직접 URL
@@ -146,8 +167,16 @@ export default function AnalysisPage() {
     });
   };
 
+  if (!mounted) {
+    return (
+      <main className="analysis-page custom-scrollbar" style={{ opacity: 0 }} suppressHydrationWarning={true}>
+        <div className="container"></div>
+      </main>
+    );
+  }
+
   return (
-    <main className="analysis-page custom-scrollbar">
+    <main className="analysis-page custom-scrollbar" suppressHydrationWarning={true}>
       <div className="hero-blob"></div>
       <div className="hero-blob-2"></div>
       
@@ -217,7 +246,14 @@ export default function AnalysisPage() {
                       src={video.thumbnail} 
                       alt={video.title} 
                       className="thumbnail-img"
-                      onError={(e) => { e.target.style.display='none'; e.target.nextSibling.style.display='flex'; }}
+                      onError={(e) => { 
+                        if (e.target.src.includes('maxresdefault')) {
+                          e.target.src = e.target.src.replace('maxresdefault.webp', 'hqdefault.jpg').replace('maxresdefault.jpg', 'hqdefault.jpg');
+                        } else {
+                          e.target.style.display='none'; 
+                          e.target.nextSibling.style.display='flex'; 
+                        }
+                      }}
                     />
                   ) : null}
                   <div className="thumbnail-fallback" style={{ display: video.thumbnail ? 'none' : 'flex' }}>
