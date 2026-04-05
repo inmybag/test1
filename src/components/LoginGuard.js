@@ -60,7 +60,7 @@ export default function LoginGuard({ children }) {
               className={error ? 'error' : ''}
               autoFocus
             />
-            {error && <p className="error-text">틀린 패스워드입니다. (qwer)</p>}
+            {error && <p className="error-text">패스워드가 일치하지 않습니다.</p>}
             <button type="submit">접속하기</button>
           </form>
         </div>
