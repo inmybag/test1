@@ -21,6 +21,34 @@ export default function AnalysisPage() {
   }, []);
 
   useEffect(() => {
+    if (selectedVideo && selectedVideo.notionUrl) {
+      validateNotionPage(selectedVideo);
+    }
+  }, [selectedVideo]);
+
+  const validateNotionPage = async (video) => {
+    try {
+      const response = await fetch('/api/notion/validate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          videoId: video.videoId,
+          dateStr: video.dateStr,
+          notionUrl: video.notionUrl
+        })
+      });
+      const result = await response.json();
+      if (!result.isValid) {
+        // If not valid, clear it locally
+        video.notionUrl = null;
+        setSelectedVideo({ ...video }); 
+      }
+    } catch (error) {
+      console.error('Failed to validate notion page:', error);
+    }
+  };
+
+  useEffect(() => {
     setPage(1);
   }, [category, platform]);
 
