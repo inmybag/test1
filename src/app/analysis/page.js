@@ -49,23 +49,28 @@ export default function AnalysisPage() {
   };
 
   useEffect(() => {
-    setPage(1);
+    fetchResults();
   }, [category, platform]);
 
-  useEffect(() => {
-    fetchResults();
-  }, [category, platform, page]);
-
-  const fetchResults = async () => {
+  const fetchResults = async (isLoadMore = false) => {
     setLoading(true);
     try {
-      let queryParams = `?page=${page}&limit=12`;
+      const currentPage = isLoadMore ? page + 1 : 1;
+      let queryParams = `?page=${currentPage}&limit=12`;
       if (category !== 'All') queryParams += `&category=${category}`;
       if (platform !== 'All') queryParams += `&platform=${platform}`;
       
       const response = await fetch(`/api/analysis/results${queryParams}`);
       const data = await response.json();
-      setVideos(data.results || []);
+      
+      if (isLoadMore) {
+        setVideos(prev => [...prev, ...(data.results || [])]);
+        setPage(currentPage);
+      } else {
+        setVideos(data.results || []);
+        setPage(1);
+      }
+
       if (data.pagination) {
         setTotalPages(data.pagination.totalPages || 1);
       }
@@ -395,6 +400,12 @@ export default function AnalysisPage() {
 
                     <span className="category-badge">{video.category}</span>
                     <div className="badge-group">
+                      {video.dateStr === new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Seoul' }).replace(/-/g, '') && (
+                        <span className="today-badge">
+                          <Sparkles size={12} />
+                          <span>오늘 신규</span>
+                        </span>
+                      )}
                       {video.isSentToNotion && (
                         <span className="notion-sent-badge">
                           <CheckCircle size={12} />
@@ -423,6 +434,7 @@ export default function AnalysisPage() {
                         <span className="score-value">{video.analysisJson.score}</span>
                         <TrendingUp size={16} className="text-blue-400" />
                       </div>
+                      <span className="date-info">수집일: {video.dateStr.replace(/(\d{4})(\d{2})(\d{2})/, '$1-$2-$3')}</span>
                     </div>
                     <button className="btn-view-report">
                       기획 리포트 <ArrowRight size={14} />
@@ -440,32 +452,14 @@ export default function AnalysisPage() {
           </div>
         )}
 
-        {!loading && videos.length > 0 && totalPages > 1 && (
+        {!loading && videos.length > 0 && page < totalPages && (
           <div className="pagination">
             <button 
-              className="page-btn" 
-              onClick={() => { setPage(p => Math.max(1, p - 1)); window.scrollTo({ top: 300, behavior: 'smooth' }); }}
-              disabled={page === 1}
+              className="btn-load-more"
+              onClick={() => fetchResults(true)}
+              disabled={loading}
             >
-              이전
-            </button>
-            <div className="page-numbers">
-              {Array.from({ length: totalPages }, (_, i) => i + 1).map(p => (
-                <button 
-                  key={p} 
-                  className={`page-num ${page === p ? 'active' : ''}`}
-                  onClick={() => { setPage(p); window.scrollTo({ top: 300, behavior: 'smooth' }); }}
-                >
-                  {p}
-                </button>
-              ))}
-            </div>
-            <button 
-              className="page-btn" 
-              onClick={() => { setPage(p => Math.min(totalPages, p + 1)); window.scrollTo({ top: 300, behavior: 'smooth' }); }}
-              disabled={page === totalPages}
-            >
-              다음
+              영상 더 불러오기 (전체 {totalPages}페이지 중 {page}페이지) <ArrowRight size={18} />
             </button>
           </div>
         )}
@@ -1023,6 +1017,47 @@ export default function AnalysisPage() {
         .score-label { font-size: 0.7rem; font-weight: 800; color: #475569; text-transform: uppercase; margin-bottom: 0.3rem; letter-spacing: 0.05em; }
         .score-row { display: flex; align-items: center; gap: 0.5rem; }
         .score-value { font-size: 2rem; font-weight: 900; color: #3b82f6; line-height: 1; letter-spacing: -0.02em; }
+        .date-info { font-size: 0.7rem; color: #475569; margin-top: 0.5rem; font-weight: 600; }
+
+        .today-badge {
+          background: #3b82f6;
+          padding: 0.5rem 0.8rem;
+          border-radius: 0.8rem;
+          display: flex;
+          align-items: center;
+          gap: 0.4rem;
+          font-size: 0.75rem;
+          font-weight: 800;
+          color: #fff;
+          box-shadow: 0 4px 12px rgba(59, 130, 246, 0.4);
+        }
+        
+        .btn-load-more {
+          background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
+          border: 1px solid rgba(255, 255, 255, 0.1);
+          color: #f1f5f9;
+          padding: 1.2rem 3rem;
+          border-radius: 1.5rem;
+          font-size: 1rem;
+          font-weight: 800;
+          display: flex;
+          align-items: center;
+          gap: 1rem;
+          cursor: pointer;
+          transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+          box-shadow: 0 20px 40px -10px rgba(0, 0, 0, 0.5);
+        }
+        .btn-load-more:hover {
+          transform: translateY(-5px);
+          border-color: #3b82f6;
+          box-shadow: 0 30px 60px -10px rgba(59, 130, 246, 0.3);
+          background: #fff;
+          color: #000;
+        }
+        .btn-load-more:disabled {
+          opacity: 0.5;
+          cursor: not-allowed;
+        }
         
         .btn-view-report {
           background: rgba(255,255,255,0.03);
