@@ -24,12 +24,12 @@ export async function initDb() {
       ALTER TABLE rankings ADD COLUMN IF NOT EXISTS product_id TEXT;
     `;
 
-    // Add video_analyses table
+    // Add video_analyses table with unique(video_id)
     await sql`
       CREATE TABLE IF NOT EXISTS video_analyses (
         id SERIAL PRIMARY KEY,
         platform TEXT NOT NULL,
-        video_id TEXT NOT NULL,
+        video_id TEXT NOT NULL UNIQUE,
         url TEXT NOT NULL,
         title TEXT NOT NULL,
         thumbnail TEXT,
@@ -42,7 +42,8 @@ export async function initDb() {
         description TEXT,
         comments JSONB DEFAULT '[]',
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        UNIQUE(video_id, date_str)
+        notion_url TEXT,
+        is_sent_to_notion BOOLEAN DEFAULT FALSE
       );
     `;
 
@@ -53,6 +54,7 @@ export async function initDb() {
     await sql`ALTER TABLE video_analyses ADD COLUMN IF NOT EXISTS description TEXT;`;
     await sql`ALTER TABLE video_analyses ADD COLUMN IF NOT EXISTS comments JSONB DEFAULT '[]';`;
     await sql`ALTER TABLE video_analyses ADD COLUMN IF NOT EXISTS notion_url TEXT;`;
+    await sql`ALTER TABLE video_analyses ADD COLUMN IF NOT EXISTS is_sent_to_notion BOOLEAN DEFAULT FALSE;`;
     
     console.log('Database initialized and migrated successfully.');
   } catch (error) {
@@ -155,7 +157,7 @@ export async function saveVideoAnalysis(video) {
         ${video.view_count || 0}, ${video.like_count || 0}, ${video.comment_count || 0}, 
         ${video.description || ''}, ${JSON.stringify(video.comments || [])}
       )
-      ON CONFLICT (video_id, date_str) 
+      ON CONFLICT (video_id) 
       DO UPDATE SET 
         title = EXCLUDED.title,
         thumbnail = EXCLUDED.thumbnail,
@@ -165,7 +167,8 @@ export async function saveVideoAnalysis(video) {
         comment_count = EXCLUDED.comment_count,
         description = EXCLUDED.description,
         comments = EXCLUDED.comments,
-        notion_url = COALESCE(video_analyses.notion_url, EXCLUDED.notion_url);
+        notion_url = COALESCE(video_analyses.notion_url, EXCLUDED.notion_url),
+        is_sent_to_notion = video_analyses.is_sent_to_notion;
     `;
     return true;
   } catch (error) {
@@ -191,7 +194,7 @@ export async function getVideoAnalyses(dateStr, category = null) {
           date_str as "dateStr", analysis_json as "analysisJson",
           view_count as "viewCount", like_count as "likeCount", 
           comment_count as "commentCount", description, comments,
-          notion_url as "notionUrl"
+          notion_url as "notionUrl", is_sent_to_notion as "isSentToNotion"
         FROM video_analyses 
         WHERE date_str = ${dateStr} AND category = ${category}
         ORDER BY created_at DESC;
@@ -204,7 +207,7 @@ export async function getVideoAnalyses(dateStr, category = null) {
           date_str as "dateStr", analysis_json as "analysisJson",
           view_count as "viewCount", like_count as "likeCount", 
           comment_count as "commentCount", description, comments,
-          notion_url as "notionUrl"
+          notion_url as "notionUrl", is_sent_to_notion as "isSentToNotion"
         FROM video_analyses 
         WHERE date_str = ${dateStr}
         ORDER BY created_at DESC;
@@ -285,7 +288,7 @@ export async function getPagedVideoAnalyses(category = null, page = 1, limit = 1
           date_str as "dateStr", analysis_json as "analysisJson",
           view_count as "viewCount", like_count as "likeCount", 
           comment_count as "commentCount", description, comments,
-          notion_url as "notionUrl"
+          notion_url as "notionUrl", is_sent_to_notion as "isSentToNotion"
         FROM video_analyses 
         ORDER BY created_at DESC
         LIMIT ${limit} OFFSET ${offset};
@@ -307,17 +310,22 @@ export async function updateVideoNotionUrl(videoId, dateStr, notionUrl) {
   if (!isProd) {
     console.log('Mock Update Notion URL:', videoId, notionUrl);
     if (global.analysisDb) {
-      const video = global.analysisDb.find(v => v.video_id === videoId && v.date_str === dateStr);
-      if (video) video.notion_url = notionUrl;
+      const video = global.analysisDb.find(v => v.video_id === videoId);
+      if (video) {
+        video.notion_url = notionUrl;
+        video.is_sent_to_notion = true;
+      }
     }
     return true;
   }
 
   try {
+    // We update is_sent_to_notion as well when notion_url is updated.
+    // dateStr is no longer strictly needed for uniqueness but kept for API compatibility.
     await sql`
       UPDATE video_analyses 
-      SET notion_url = ${notionUrl}
-      WHERE video_id = ${videoId} AND date_str = ${dateStr};
+      SET notion_url = ${notionUrl}, is_sent_to_notion = TRUE
+      WHERE video_id = ${videoId};
     `;
     return true;
   } catch (error) {

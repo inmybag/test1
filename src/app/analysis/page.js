@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { Video, Play, BarChart2, Info, ArrowRight, Youtube, Instagram, Music, ExternalLink, X, Eye, Heart, MessageCircle, Lightbulb, TrendingUp, Sparkles, Share2 } from 'lucide-react';
+import { Video, Play, BarChart2, Info, ArrowRight, Youtube, Instagram, Music, ExternalLink, X, Eye, Heart, MessageCircle, Lightbulb, TrendingUp, Sparkles, Share2, CheckCircle } from 'lucide-react';
 
 export default function AnalysisPage() {
   const [videos, setVideos] = useState([]);
@@ -103,7 +103,9 @@ export default function AnalysisPage() {
       const result = await response.json();
       if (result.success) {
         // Update local state for success feedback
+        video.isSentToNotion = true;
         video.notionUrl = result.url;
+        setVideos([...videos]); // Trigger re-render
         alert('🚀 마케팅부문 노션 페이지로 성공적으로 전송되었습니다!');
       } else {
         alert('❌ 노션 전송 중 오류가 발생했습니다: ' + result.error);
@@ -392,7 +394,15 @@ export default function AnalysisPage() {
                   <div className="card-badges">
 
                     <span className="category-badge">{video.category}</span>
-                    <span className="platform-icon-wrapper">{getPlatformIcon(video.platform)}</span>
+                    <div className="badge-group">
+                      {video.isSentToNotion && (
+                        <span className="notion-sent-badge">
+                          <CheckCircle size={12} />
+                          <span>전송됨</span>
+                        </span>
+                      )}
+                      <span className="platform-icon-wrapper">{getPlatformIcon(video.platform)}</span>
+                    </div>
                   </div>
                   <div className="play-overlay">
                     <div className="play-btn-circle">
@@ -590,7 +600,7 @@ export default function AnalysisPage() {
                         원본 채널 방문 <ExternalLink size={16} />
                       </a>
                       
-                      {selectedVideo.notionUrl ? (
+                      {selectedVideo.isSentToNotion || selectedVideo.notionUrl ? (
                         <a href={selectedVideo.notionUrl} target="_blank" rel="noopener noreferrer" className="btn-notion success">
                           노션 페이지 확인하기 <ArrowRight size={16} />
                         </a>
@@ -961,6 +971,23 @@ export default function AnalysisPage() {
           color: #fff;
           border: 1px solid rgba(255, 255, 255, 0.1);
           letter-spacing: 0.02em;
+        }
+        .badge-group {
+          display: flex;
+          align-items: center;
+          gap: 0.5rem;
+        }
+        .notion-sent-badge {
+          background: #22c55e;
+          padding: 0.5rem 0.8rem;
+          border-radius: 0.8rem;
+          display: flex;
+          align-items: center;
+          gap: 0.4rem;
+          font-size: 0.75rem;
+          font-weight: 800;
+          color: #fff;
+          box-shadow: 0 4px 12px rgba(34, 197, 94, 0.3);
         }
         .platform-icon-wrapper {
           background: #fff;

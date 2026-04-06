@@ -8,8 +8,12 @@ cd $PROJECT_DIR
 LOG_FILE="$PROJECT_DIR/scripts/analysis_cron.log"
 
 echo "[$(date)] ========================================" >> $LOG_FILE
-echo "[$(date)] --- 시작: 데일리 멀티 플랫폼 숏폼 분석 ---" >> $LOG_FILE
+echo "[$(date)] --- 시작: 데일리 멀티 플랫폼 분석 및 트렌드 ---" >> $LOG_FILE
 echo "[$(date)] ========================================" >> $LOG_FILE
+
+# 0단계: 올리브영 실시간 랭킹 수집
+echo "[$(date)] 0단계: 올리브영 실시간 랭킹 수집 시작 (crawl-puppeteer.js)..." >> $LOG_FILE
+/usr/local/bin/node scripts/crawl-puppeteer.js >> $LOG_FILE 2>&1
 
 # 1단계: 플랫폼별 숏폼 수집 (YouTube Shorts / Instagram Reels / TikTok)
 echo "[$(date)] 1단계: 멀티 플랫폼 숏폼 수집 시작 (fetch_shortform.py: YouTube)..." >> $LOG_FILE

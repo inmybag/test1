@@ -73,7 +73,7 @@ async function saveToDb(dateStr, videos) {
                 ${v.category}, ${dateStr}, ${JSON.stringify(defaultAnalysis)}, 
                 ${v.view_count || 0}, ${v.like_count || 0}, ${v.comment_count || 0}, 
                 ${v.description || ''}, '[]'::jsonb)
-        ON CONFLICT (video_id, date_str)
+        ON CONFLICT (video_id)
         DO UPDATE SET
           platform = EXCLUDED.platform,
           category = EXCLUDED.category,

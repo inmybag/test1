@@ -11,6 +11,15 @@ const TARGET_BRANDS = [
   "Skin1004", "Numbuzin"
 ];
 
+// Utility to fix unpaired surrogates which cause PostgreSQL JSONB errors
+function sanitizeString(str) {
+  if (typeof str !== 'string') return str;
+  // Remove high surrogates not followed by low surrogates, 
+  // and low surrogates not preceded by high surrogates.
+  return str.replace(/[\uD800-\uDBFF](?![\uDC00-\uDFFF])/g, '')
+            .replace(/(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/g, '');
+}
+
 function calculateScore(views, likes, comments) {
   const v = parseInt(views) || 0;
   const l = parseInt(likes) || 0;
@@ -178,18 +187,18 @@ async function analyze() {
     // 인자 순서 수정: (hook, commentKeywords, category, videoTitle)
     const aekyungStrategy = generateAekyungStrategy(hook, commentKeywords, row.category, row.title);
     
-    const shortTitle = row.title.length > 20 ? row.title.substring(0, 20) + '...' : row.title;
+    const shortTitle = sanitizeString(row.title.length > 20 ? row.title.substring(0, 20) + '...' : row.title);
     const analysis = {
       score,
-      hook: hook,
-      commentInsight: commentInsights,
-      summary: `[${type}] 포맷이 돋보이는 영상입니다. '${shortTitle}' 콘텐츠에서 유저들은 ${commentInsights}에 뜨거운 반응을 보이고 있습니다.`,
+      hook: sanitizeString(hook),
+      commentInsight: sanitizeString(commentInsights),
+      summary: sanitizeString(`[${type}] 포맷이 돋보이는 영상입니다. '${shortTitle}' 콘텐츠에서 유저들은 ${commentInsights}에 뜨거운 반응을 보이고 있습니다.`),
       takeaways: [
-        `'${shortTitle}' 영상의 초반 3초 후킹 전략: ${hook.substring(0, 40)}`,
-        `${row.platform.toUpperCase()} 알고리즘이 선택한 '${type}' 포맷의 핵심 성공 요인`,
-        `댓글 반응 키워드${commentKeywords.length > 0 ? ' [' + commentKeywords.slice(0, 2).join(', ') + ']' : ''}에서 발견된 소비자 심리 인사이트`
+        sanitizeString(`'${shortTitle}' 영상의 초반 3초 후킹 전략: ${hook.substring(0, 40)}`),
+        sanitizeString(`${row.platform.toUpperCase()} 알고리즘이 선택한 '${type}' 포맷의 핵심 성공 요인`),
+        sanitizeString(`댓글 반응 키워드${commentKeywords.length > 0 ? ' [' + commentKeywords.slice(0, 2).join(', ') + ']' : ''}에서 발견된 소비자 심리 인사이트`)
       ],
-      planning: aekyungStrategy
+      planning: sanitizeString(aekyungStrategy)
     };
 
     await pool.query(

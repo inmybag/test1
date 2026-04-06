@@ -281,7 +281,7 @@ def save_to_db(videos: list) -> None:
                   (platform, video_id, url, title, thumbnail, category, date_str,
                    analysis_json, view_count, like_count, comment_count, description, comments)
                 VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-                ON CONFLICT (video_id, date_str)
+                ON CONFLICT (video_id)
                 DO UPDATE SET
                   platform      = EXCLUDED.platform,
                   category      = EXCLUDED.category,
