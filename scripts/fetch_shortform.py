@@ -25,29 +25,25 @@ TODAY        = datetime.now().strftime('%Y%m%d')
 # ── 수집 키워드 (벤치마킹 타겟) ────────────────────────
 TARGET_KEYWORDS = [
     # Beauty
-    {"en": "Hera makeup",         "ko": "헤라",           "type": "Beauty"},
-    {"en": "Sulwhasoo skincare",  "ko": "설화수",          "type": "Beauty"},
-    {"en": "Romand lip",          "ko": "롬앤",            "type": "Beauty"},
-    {"en": "Laneige lips",        "ko": "라네즈",          "type": "Beauty"},
-    {"en": "Clio makeup",         "ko": "클리오",          "type": "Beauty"},
-    {"en": "Beauty of Joseon",    "ko": "조선미녀",        "type": "Beauty"},
-    {"en": "Skin1004 centella",   "ko": "스킨1004",        "type": "Beauty"},
-    {"en": "Medicube pore",       "ko": "메디큐브",        "type": "Beauty"},
-    {"en": "Korean base makeup",  "ko": "파운데이션 꿀팁", "type": "Beauty"},
-    {"en": "Olive Young haul",    "ko": "올리브영 추천템", "type": "Beauty"},
-    # Household
-    {"en": "Downy fabric softener","ko": "다우니",         "type": "Household"},
-    {"en": "Pigeon laundry",      "ko": "피죤",            "type": "Household"},
-    {"en": "Aura detergent",      "ko": "아우라 세제",     "type": "Household"},
-    {"en": "Yuhanrox disinfect",  "ko": "유한락스",        "type": "Household"},
-    {"en": "laundry hack smell",  "ko": "빨래 쉰내 제거",  "type": "Household"},
-    {"en": "bathroom cleaning tip","ko": "화장실 청소 팁",  "type": "Household"},
-    {"en": "kitchen grease hack", "ko": "주방 기름때 제거", "type": "Household"},
+    {"en": "Korean skincare routine", "ko": "스킨케어 루틴", "type": "Beauty"},
+    {"en": "Daily makeup tutorial", "ko": "데일리 메이크업", "type": "Beauty"},
+    {"en": "Olive Young recommended", "ko": "올리브영 추천템", "type": "Beauty"},
+    {"en": "K-beauty trending", "ko": "K뷰티 트렌드", "type": "Beauty"},
+    # Household - Body/Hair
+    {"en": "Body wash recommendation", "ko": "바디워시 추천", "type": "Household"},
+    {"en": "Hair care routine", "ko": "헤어케어 루틴", "type": "Household"},
+    {"en": "Shampoo for hair loss", "ko": "탈모 샴푸", "type": "Household"},
+    # Household - Living
+    {"en": "Laundry detergent hack", "ko": "세탁세제 꿀팁", "type": "Household"},
+    {"en": "Fabric softener scent", "ko": "섬유유연제 향수", "type": "Household"},
+    {"en": "Whitening toothpaste", "ko": "미백 치약 추천", "type": "Household"},
+    {"en": "Bathroom cleaning hack", "ko": "화장실 청소 꿀팁", "type": "Household"},
+    {"en": "Kitchen grease removal", "ko": "주방 기름때 제거", "type": "Household"},
 ]
 
 # 플랫폼별 샘플 수집 건수 (Top 10 선별을 위한 후보군)
 COUNTS = {
-    "youtube":   5,   # 키워드별 후보 수집량 (17개 키워드 x 5 = 85개 후보 중 Top 10 선정)
+    "youtube": 15,   # 키워드별 후보 수집량
 }
 
 def calculate_engagement_score(v):
@@ -187,11 +183,12 @@ PRINT_FIELDS = (
 )
 
 def fetch_youtube_shorts(keyword_en: str, keyword_ko: str, category: str, count: int = 3) -> list:
-    """YouTube Shorts 벤치마킹: 숏폼 형식 콘텐츠 검색"""
+    """YouTube Shorts 벤치마킹: 최근 1개월 이내 최신 영상 수집"""
     search_q = f"{keyword_en} shorts"
     cmd = (
         f'{PYTHON_BIN} -m yt_dlp "ytsearch{count * 4}:{search_q}" '
         '--geo-bypass '
+        '--dateafter today-1month '
         f'--max-downloads {count} '
         f'{PRINT_FIELDS} '
         '--no-warnings --ignore-errors'
@@ -200,7 +197,7 @@ def fetch_youtube_shorts(keyword_en: str, keyword_ko: str, category: str, count:
     videos = _parse_lines(lines, 'youtube', keyword_ko, category)
     # youtube platform인 것만 (tiktok/instagram URL이 섞일 수 있음)
     result = [v for v in videos if v['platform'] == 'youtube'][:count]
-    print(f"  ✅ YouTube Shorts [{keyword_ko}]: {len(result)}개 수집")
+    print(f"  ✅ YouTube Shorts [{keyword_ko}]: {len(result)}개 후보 수집")
     return result
 
 

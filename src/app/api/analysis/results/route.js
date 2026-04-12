@@ -6,10 +6,11 @@ export async function GET(request) {
   const { searchParams } = new URL(request.url);
   const category = searchParams.get('category');
   const platform = searchParams.get('platform');
+  const tag = searchParams.get('tag');
   const page = parseInt(searchParams.get('page')) || 1;
   const limit = parseInt(searchParams.get('limit')) || 12;
   
-  const { rows, totalCount } = await getPagedVideoAnalyses(category, page, limit, platform);
+  const { rows, totalCount } = await getPagedVideoAnalyses(category, page, limit, platform, tag);
   const totalPages = Math.ceil(totalCount / limit);
   
   return NextResponse.json({

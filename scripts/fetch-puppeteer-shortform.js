@@ -12,29 +12,25 @@ const pool = createPool({
 
 const TARGET_KEYWORDS = [
   // Beauty
-  { en: "Hera makeup", ko: "헤라", type: "Beauty" },
-  { en: "Sulwhasoo skincare", ko: "설화수", type: "Beauty" },
-  { en: "Romand lip", ko: "롬앤", type: "Beauty" },
-  { en: "Laneige lips", ko: "라네즈", type: "Beauty" },
-  { en: "Clio makeup", ko: "클리오", type: "Beauty" },
-  { en: "Beauty of Joseon", ko: "조선미녀", type: "Beauty" },
-  { en: "Skin1004 centella", ko: "스킨1004", type: "Beauty" },
-  { en: "Medicube pore", ko: "메디큐브", type: "Beauty" },
-  { en: "Korean base makeup", ko: "파운데이션 꿀팁", type: "Beauty" },
-  { en: "Olive Young haul", ko: "올리브영 추천템", type: "Beauty" },
-  // Household
-  { en: "Downy fabric softener", ko: "다우니", type: "Household" },
-  { en: "Pigeon laundry", ko: "피죤", type: "Household" },
-  { en: "Aura detergent", ko: "아우라 세제", type: "Household" },
-  { en: "Yuhanrox disinfect", ko: "유한락스", type: "Household" },
-  { en: "laundry hack smell", ko: "빨래 쉰내 제거", type: "Household" },
-  { en: "bathroom cleaning tip", ko: "화장실 청소 팁", type: "Household" },
-  { en: "kitchen grease hack", ko: "주방 기름때 제거", type: "Household" },
+  { en: "Korean skincare routine", ko: "스킨케어 루틴", type: "Beauty" },
+  { en: "Daily makeup tutorial", ko: "데일리 메이크업", type: "Beauty" },
+  { en: "Olive Young recommended", ko: "올리브영 추천템", type: "Beauty" },
+  { en: "K-beauty trending", ko: "K뷰티 트렌드", type: "Beauty" },
+  // Household - Body/Hair
+  { en: "Body wash recommendation", ko: "바디워시 추천", type: "Household" },
+  { en: "Hair care routine", ko: "헤어케어 루틴", type: "Household" },
+  { en: "Shampoo for hair loss", ko: "탈모 샴푸", type: "Household" },
+  // Household - Living
+  { en: "Laundry detergent hack", ko: "세탁세제 꿀팁", type: "Household" },
+  { en: "Fabric softener scent", ko: "섬유유연제 향수", type: "Household" },
+  { en: "Whitening toothpaste", ko: "미백 치약 추천", type: "Household" },
+  { en: "Bathroom cleaning hack", ko: "화장실 청소 꿀팁", type: "Household" },
+  { en: "Kitchen grease removal", ko: "주방 기름때 제거", type: "Household" },
 ];
 
 const COUNTS = {
-  tiktok: 5,     // 키워드별 후보 수집량 (17개 키워드 x 5 = 85개 후보 중 Top 10 선정)
-  instagram: 4   // 인스타그램 후보 수집량
+  tiktok: 15,     // 키워드별 후보 수집량 (12개 키워드 x 15 = 180개 후보 중 Top 10 선정)
+  instagram: 12   // 인스타그램 후보 수집량
 };
 
 // 지표 텍스트(1.2M, 10K 등)를 숫자로 변환하는 헬퍼
@@ -63,7 +59,8 @@ async function saveToDb(dateStr, videos) {
         score: 0,
         hook: "분석 전",
         summary: "AI 분석이 예약되었습니다.",
-        takeaways: []
+        takeaways: [],
+        tags: []
       };
       await client.sql`
         INSERT INTO video_analyses
@@ -102,7 +99,8 @@ async function fetchTikTok(browser, keyword_en, keyword_ko, category, count) {
   const page = await browser.newPage();
   try {
     console.log(`  🔍 TikTok 검색 중: ${keyword_ko} (${keyword_en})`);
-    const q = encodeURIComponent(`${keyword_en} tiktok viral`);
+    // 'tiktok viral' 대신 '2024 2025 viral' 등을 섞어 최신성 유도
+    const q = encodeURIComponent(`${keyword_en} viral 2025`);
     const url = `https://www.tiktok.com/search/video?q=${q}`;
     await page.goto(url, { waitUntil: 'networkidle2', timeout: 30000 });
     await delay(3000);
@@ -127,11 +125,9 @@ async function fetchTikTok(browser, keyword_en, keyword_ko, category, count) {
         const thumbEl = el.querySelector('img');
         const thumbnail = thumbEl ? thumbEl.src : '';
         
-        // 틱톡 조회수 추출
         const viewEl = el.querySelector('strong[data-e2e="video-views"], .video-count, .views');
         const viewCount = viewEl ? parseMetric(viewEl.innerText) : 0;
         
-        // 지표가 없을 경우 검색 순위를 기반으로 가상의 인게이지먼트 점수 부여 (역순)
         const rankScore = (count - index) * 1000;
         
         items.push({
@@ -144,13 +140,13 @@ async function fetchTikTok(browser, keyword_en, keyword_ko, category, count) {
           view_count: viewCount || rankScore,
           like_count: 0,
           comment_count: 0,
-          description: `[TikTok TOP 10] 성과 기반 수집`
+          description: `[TikTok Trending] ${category} 카테고리 최신 영상`
         });
       });
       return items;
     }, category, count, parseMetric.toString());
     
-    console.log(`  ✅ TikTok [${keyword_ko}]: ${videos.length}개 후보 수집`);
+    console.log(`  ✅ TikTok [${keyword_ko}]: ${videos.length}개 후보군 확보`);
     return videos;
   } catch (error) {
     console.log(`  ❌ TikTok 수집 실패 (${keyword_ko}): ${error.message}`);
@@ -167,7 +163,6 @@ async function fetchInstagram(browser, keyword_en, keyword_ko, category, count) 
     const q = encodeURIComponent(keyword_ko);
     const url = `https://www.instagram.com/explore/tags/${q}/`;
     
-    // Instagram tends to reject completely if loading without typical headers.
     await page.setExtraHTTPHeaders({
         'Accept-Language': 'ko-KR,ko;q=0.9,en-US;q=0.8,en;q=0.7'
     });
@@ -197,7 +192,6 @@ async function fetchInstagram(browser, keyword_en, keyword_ko, category, count) 
         const thumbnail = img ? img.src : '';
         const desc = img ? img.alt : '';
         
-        // 인스타그램은 비로그인 시 수치 추출이 어려우므로 검색 노출 순서(인기순 정렬됨)를 점수화
         const rankScore = (count - index) * 5000;
         
         items.push({
@@ -210,13 +204,13 @@ async function fetchInstagram(browser, keyword_en, keyword_ko, category, count) 
           view_count: rankScore, 
           like_count: 0,
           comment_count: 0,
-          description: `[Instagram TOP 10] 성과 기반 수집 (인기 태그 순위 반영)`
+          description: `[Instagram Trending] ${category} 인기 태그 영상`
         });
       });
       return items;
     }, category, count, parseMetric.toString());
 
-    console.log(`  ✅ Instagram [${keyword_ko}]: ${videos.length}개 수집 (목표: ${count}개)`);
+    console.log(`  ✅ Instagram [${keyword_ko}]: ${videos.length}개 후보군 확보`);
     return videos;
   } catch (error) {
     console.log(`  ❌ Instagram 수집 실패 (${keyword_ko}): ${error.message}`);
@@ -271,7 +265,6 @@ async function main() {
 
   // 2. Instagram TOP 10 선별 및 저장
   console.log(`\n📊 Instagram TOP 10 선별 중 (총 ${all_ig_candidates.length}개 후보)...`);
-  // 인스타그램 게시물은 조회수가 바로 안나오는 경우가 많아 수집 순서(인기순)를 보조 지표로 활용 제안할 수 있으나, 일단 점수 정렬 유지
   all_ig_candidates.sort((a, b) => calculateEngagementScore(b) - calculateEngagementScore(a));
   const top10_ig = all_ig_candidates.slice(0, 10);
   top10_ig.forEach(v => v.date_str = todayStr);
@@ -279,7 +272,7 @@ async function main() {
 
   await browser.close();
   console.log("\n" + "=".repeat(60));
-  console.log(`✅ 성과 기반 크롤링 완료: 플랫폼별 상위 10개씩 저장되었습니다.`);
+  console.log(`✅ 성과 기반 크롤링 완료: 플랫폼별 최신 상위 10개씩 저장되었습니다.`);
   console.log("=".repeat(60));
   
   process.exit(0);

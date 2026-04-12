@@ -220,16 +220,19 @@ export async function getVideoAnalyses(dateStr, category = null) {
   }
 }
 
-export async function getPagedVideoAnalyses(category = null, page = 1, limit = 12, platform = null) {
+export async function getPagedVideoAnalyses(category = null, page = 1, limit = 12, platform = null, tag = null) {
   const offset = (page - 1) * limit;
 
   if (!isProd) {
     let results = global.analysisDb || [];
-    if (category) {
+    if (category && category !== 'All') {
       results = results.filter(item => item.category === category);
     }
-    if (platform) {
+    if (platform && platform !== 'All') {
       results = results.filter(item => item.platform === platform);
+    }
+    if (tag && tag !== 'All') {
+      results = results.filter(item => item.analysis_json?.tags?.includes(tag));
     }
     const totalCount = results.length;
     results.sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0));
@@ -238,68 +241,43 @@ export async function getPagedVideoAnalyses(category = null, page = 1, limit = 1
   }
 
   try {
-    let countQuery;
-    let dataQuery;
-    
-    if (category && platform) {
-      countQuery = sql`SELECT count(*) FROM video_analyses WHERE category = ${category} AND platform = ${platform}`;
-      dataQuery = sql`
-        SELECT 
-          platform, video_id as "videoId", url, title, thumbnail, category, 
-          date_str as "dateStr", analysis_json as "analysisJson",
-          view_count as "viewCount", like_count as "likeCount", 
-          comment_count as "commentCount", description, comments
-        FROM video_analyses 
-        WHERE category = ${category} AND platform = ${platform}
-        ORDER BY created_at DESC
-        LIMIT ${limit} OFFSET ${offset};
-      `;
-    } else if (category && !platform) {
-      countQuery = sql`SELECT count(*) FROM video_analyses WHERE category = ${category}`;
-      dataQuery = sql`
-        SELECT 
-          platform, video_id as "videoId", url, title, thumbnail, category, 
-          date_str as "dateStr", analysis_json as "analysisJson",
-          view_count as "viewCount", like_count as "likeCount", 
-          comment_count as "commentCount", description, comments
-        FROM video_analyses 
-        WHERE category = ${category}
-        ORDER BY created_at DESC
-        LIMIT ${limit} OFFSET ${offset};
-      `;
-    } else if (!category && platform) {
-      countQuery = sql`SELECT count(*) FROM video_analyses WHERE platform = ${platform}`;
-      dataQuery = sql`
-        SELECT 
-          platform, video_id as "videoId", url, title, thumbnail, category, 
-          date_str as "dateStr", analysis_json as "analysisJson",
-          view_count as "viewCount", like_count as "likeCount", 
-          comment_count as "commentCount", description, comments
-        FROM video_analyses 
-        WHERE platform = ${platform}
-        ORDER BY created_at DESC
-        LIMIT ${limit} OFFSET ${offset};
-      `;
-    } else {
-      countQuery = sql`SELECT count(*) FROM video_analyses`;
-      dataQuery = sql`
-        SELECT 
-          platform, video_id as "videoId", url, title, thumbnail, category, 
-          date_str as "dateStr", analysis_json as "analysisJson",
-          view_count as "viewCount", like_count as "likeCount", 
-          comment_count as "commentCount", description, comments,
-          notion_url as "notionUrl", is_sent_to_notion as "isSentToNotion"
-        FROM video_analyses 
-        ORDER BY created_at DESC
-        LIMIT ${limit} OFFSET ${offset};
-      `;
+    let whereClauses = [];
+    let params = [];
+    let paramIndex = 1;
+
+    if (category && category !== 'All') {
+      whereClauses.push(`category = $${paramIndex++}`);
+      params.push(category);
+    }
+    if (platform && platform !== 'All') {
+      whereClauses.push(`platform = $${paramIndex++}`);
+      params.push(platform);
+    }
+    if (tag && tag !== 'All') {
+      // JSONB containment operator (@>) to check if tags array contains the tag
+      whereClauses.push(`analysis_json->'tags' @> $${paramIndex++}::jsonb`);
+      params.push(JSON.stringify([tag]));
     }
 
-    const countRes = await countQuery;
-    const count = countRes.rows[0].count;
-    const { rows } = await dataQuery;
+    const whereSql = whereClauses.length > 0 ? `WHERE ${whereClauses.join(' AND ')}` : '';
     
-    return { rows, totalCount: parseInt(count, 10) };
+    const countRes = await sql.query(`SELECT count(*) FROM video_analyses ${whereSql}`, params);
+    const count = countRes.rows[0].count;
+    
+    const dataRes = await sql.query(`
+      SELECT 
+        platform, video_id as "videoId", url, title, thumbnail, category, 
+        date_str as "dateStr", analysis_json as "analysisJson",
+        view_count as "viewCount", like_count as "likeCount", 
+        comment_count as "commentCount", description, comments,
+        notion_url as "notionUrl", is_sent_to_notion as "isSentToNotion"
+      FROM video_analyses 
+      ${whereSql}
+      ORDER BY created_at DESC
+      LIMIT ${limit} OFFSET ${offset}
+    `, params);
+    
+    return { rows: dataRes.rows, totalCount: parseInt(count, 10) };
   } catch (error) {
     console.error('Fetch paged video analyses error:', error);
     return { rows: [], totalCount: 0 };

@@ -8,6 +8,8 @@ export default function AnalysisPage() {
   const [loading, setLoading] = useState(true);
   const [category, setCategory] = useState('All');
   const [platform, setPlatform] = useState('All');
+  const [selectedTag, setSelectedTag] = useState('All');
+  const [availableTags, setAvailableTags] = useState([]);
   const [selectedVideo, setSelectedVideo] = useState(null);
   const [hoveredId, setHoveredId] = useState(null);
 
@@ -39,7 +41,6 @@ export default function AnalysisPage() {
       });
       const result = await response.json();
       if (!result.isValid) {
-        // If not valid, clear it locally
         video.notionUrl = null;
         setSelectedVideo({ ...video }); 
       }
@@ -56,18 +57,31 @@ export default function AnalysisPage() {
     setLoading(true);
     try {
       const currentPage = isLoadMore ? page + 1 : 1;
-      let queryParams = `?page=${currentPage}&limit=12`;
+      let queryParams = `?page=${currentPage}&limit=24`; // Increased limit since we have more categories
       if (category !== 'All') queryParams += `&category=${category}`;
       if (platform !== 'All') queryParams += `&platform=${platform}`;
       
       const response = await fetch(`/api/analysis/results${queryParams}`);
       const data = await response.json();
       
+      const newVideos = data.results || [];
+      let updatedVideos;
+
       if (isLoadMore) {
-        setVideos(prev => [...prev, ...(data.results || [])]);
+        setVideos(prev => {
+          const combined = [...prev, ...newVideos];
+          const uniqueMap = new Map();
+          combined.forEach(video => {
+            if (video.videoId) uniqueMap.set(video.videoId, video);
+          });
+          const result = Array.from(uniqueMap.values());
+          extractTags(result);
+          return result;
+        });
         setPage(currentPage);
       } else {
-        setVideos(data.results || []);
+        setVideos(newVideos);
+        extractTags(newVideos);
         setPage(1);
       }
 
@@ -81,6 +95,20 @@ export default function AnalysisPage() {
       setLoading(false);
     }
   };
+
+  const extractTags = (videoList) => {
+    const tags = new Set();
+    videoList.forEach(v => {
+      if (v.analysisJson && v.analysisJson.tags) {
+        v.analysisJson.tags.forEach(t => tags.add(t));
+      }
+    });
+    setAvailableTags(Array.from(tags).sort());
+  };
+
+  const filteredVideos = selectedTag === 'All' 
+    ? videos 
+    : videos.filter(v => v.analysisJson?.tags?.includes(selectedTag));
 
   const sendToNotion = async (video) => {
     if (isSendingToNotion) return;
@@ -107,10 +135,9 @@ export default function AnalysisPage() {
 
       const result = await response.json();
       if (result.success) {
-        // Update local state for success feedback
         video.isSentToNotion = true;
         video.notionUrl = result.url;
-        setVideos([...videos]); // Trigger re-render
+        setVideos([...videos]); 
         alert('🚀 마케팅부문 노션 페이지로 성공적으로 전송되었습니다!');
       } else {
         alert('❌ 노션 전송 중 오류가 발생했습니다: ' + result.error);
@@ -137,41 +164,34 @@ export default function AnalysisPage() {
     if (!video || !video.url) return '';
     const { videoId, url } = video;
     
-    // YouTube (실제 YouTube URL이면 embed, 또는 썸네일 URL인 경우 videoId로 복구)
     if (url.includes('youtube.com') || url.includes('youtu.be') || url.includes('i.ytimg.com')) {
       let id = videoId;
       if (!id || id === 'undefined' || id === null || url.includes('i.ytimg.com')) {
-        // i.ytimg.com 경로에서 ID 추출 (예: /vi/_IWfkJDm9iw/...)
         if (url.includes('i.ytimg.com')) {
           const viMatch = url.match(/\/vi(?:_webp)?\/([0-9A-Za-z_-]{11})/);
           if (viMatch) id = viMatch[1];
         }
         
         if (!id || id === 'undefined') {
-          // v= 파라미터 추출
           const vParam = url.match(/[?&]v=([^&#]+)/);
           if (vParam) id = vParam[1];
           else {
-            // shorts/embed/watch 등 다양한 경로에서 11자리 ID 추출
             const match = url.match(/(?:\/|v=)([0-9A-Za-z_-]{11})/);
             id = match ? match[1] : '';
           }
         }
       }
       if (!id) return url;
-      // 11자리만 확실히 필터링
       const cleanId = id.substring(0, 11);
       if (cleanId.length < 11) return url;
       return `https://www.youtube.com/embed/${cleanId}?autoplay=1&rel=0&modestbranding=1`;
     }
     
-    // TikTok 직접 URL
     if (url.includes('tiktok.com')) {
       let id = url.split('/').pop().split('?')[0];
       return `https://www.tiktok.com/embed/v2/${id}`;
     }
     
-    // Instagram 직접 URL
     if (url.includes('instagram.com')) {
       let id = videoId;
       if (!id || id === 'undefined') {
@@ -207,7 +227,6 @@ export default function AnalysisPage() {
   const renderPlanningContent = (text) => {
     if (!text) return null;
     
-    // Markdown table parsing
     const lines = text.split('\n');
     const result = [];
     let tableRows = [];
@@ -217,13 +236,12 @@ export default function AnalysisPage() {
       const line = lines[i].trim();
       
       if (line.startsWith('|') && line.endsWith('|')) {
-        if (line.includes('---')) continue; // Skip separator line
+        if (line.includes('---')) continue; 
         isTable = true;
         const filteredCells = line.split('|').slice(1, -1).map(c => c.trim());
         tableRows.push(filteredCells);
         continue;
       } else if (isTable) {
-        // End of table - Render accumulated rows
         if (tableRows.length > 0) {
           result.push(
             <div key={`table-${i}`} className="report-table-wrapper">
@@ -279,7 +297,6 @@ export default function AnalysisPage() {
       }
     }
 
-    // Handled table at the very end
     if (isTable && tableRows.length > 0) {
       result.push(
         <div key="table-end" className="report-table-wrapper">
@@ -360,6 +377,26 @@ export default function AnalysisPage() {
           </div>
         </header>
 
+        <section className="tag-navigation-section">
+          <div className="tag-cloud">
+            <button 
+              className={`tag-btn ${selectedTag === 'All' ? 'active' : ''}`}
+              onClick={() => setSelectedTag('All')}
+            >
+              #전체보기
+            </button>
+            {availableTags.map(tag => (
+              <button 
+                key={tag} 
+                className={`tag-btn ${selectedTag === tag ? 'active' : ''}`}
+                onClick={() => setSelectedTag(tag)}
+              >
+                {tag}
+              </button>
+            ))}
+          </div>
+        </section>
+
         {loading ? (
           <div className="loader-container">
             <div className="loader-orbit">
@@ -369,7 +406,7 @@ export default function AnalysisPage() {
           </div>
         ) : (
           <div className="analysis-grid">
-            {videos.length > 0 ? videos.map((video) => (
+            {filteredVideos.length > 0 ? filteredVideos.map((video) => (
               <div 
                 key={video.videoId} 
                 className={`analysis-card ${hoveredId === video.videoId ? 'hovered' : ''}`}
@@ -427,6 +464,13 @@ export default function AnalysisPage() {
                 </div>
                 <div className="card-content">
                   <h3 className="video-title">{video.title}</h3>
+                  
+                  <div className="card-tags">
+                    {video.analysisJson?.tags?.slice(0, 3).map((tag, idx) => (
+                      <span key={idx} className="card-tag">{tag}</span>
+                    ))}
+                  </div>
+
                   <div className="card-footer">
                     <div className="performance-info">
                       <span className="score-label">벤치마킹 성공지수</span>
@@ -445,14 +489,14 @@ export default function AnalysisPage() {
             )) : (
               <div className="empty-state">
                 <Info size={48} />
-                <p>해당 카테고리에 분석된 데이터가 아직 준비되지 않았습니다.</p>
-                <button onClick={fetchResults} className="btn-retry">다시 시도</button>
+                <p>해당 조건에 분석된 데이터가 아직 준비되지 않았습니다.</p>
+                <button onClick={() => { setCategory('All'); setPlatform('All'); setSelectedTag('All'); fetchResults(); }} className="btn-retry">필터 초기화</button>
               </div>
             )}
           </div>
         )}
 
-        {!loading && videos.length > 0 && page < totalPages && (
+        {!loading && videos.length > 0 && page < totalPages && selectedTag === 'All' && (
           <div className="pagination">
             <button 
               className="btn-load-more"
@@ -1398,6 +1442,64 @@ export default function AnalysisPage() {
 
         .empty-state { display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 10rem 0; gap: 2rem; color: #475569; }
         .btn-retry { background: rgba(255,255,255,0.05); color: #fff; border: 1px solid rgba(255,255,255,0.1); padding: 0.7rem 2rem; border-radius: 0.7rem; cursor: pointer; }
+
+        .tag-navigation-section {
+          margin-bottom: 4rem;
+          padding: 1.5rem;
+          background: rgba(255, 255, 255, 0.02);
+          border: 1px solid rgba(255, 255, 255, 0.05);
+          border-radius: 1.5rem;
+          backdrop-filter: blur(10px);
+        }
+        
+        .tag-cloud {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 0.75rem;
+          justify-content: center;
+        }
+        
+        .tag-btn {
+          padding: 0.5rem 1rem;
+          border-radius: 99rem;
+          border: 1px solid rgba(255, 255, 255, 0.1);
+          background: rgba(255, 255, 255, 0.03);
+          color: #94a3b8;
+          font-size: 0.85rem;
+          font-weight: 600;
+          cursor: pointer;
+          transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        
+        .tag-btn:hover {
+          background: rgba(255, 255, 255, 0.1);
+          color: #fff;
+          transform: translateY(-2px);
+        }
+        
+        .tag-btn.active {
+          background: #3b82f633;
+          border-color: #3b82f688;
+          color: #60a5fa;
+          box-shadow: 0 0 15px rgba(59, 130, 246, 0.2);
+        }
+        
+        .card-tags {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 0.5rem;
+          margin-bottom: 1.5rem;
+        }
+        
+        .card-tag {
+          font-size: 0.75rem;
+          font-weight: 700;
+          color: #3b82f6;
+          background: rgba(59, 130, 246, 0.1);
+          padding: 0.2rem 0.6rem;
+          border-radius: 0.5rem;
+          border: 1px solid rgba(59, 130, 246, 0.1);
+        }
 
         .custom-scrollbar::-webkit-scrollbar { width: 6px; }
         .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
