@@ -10,6 +10,7 @@ export default function Navbar() {
   const menuItems = [
     { title: '올리브영 랭킹', href: '/' },
     { title: '영상분석', href: '/analysis' },
+    { title: '네이버 인기검색어', href: '/naver-shopping' },
   ];
 
   return (

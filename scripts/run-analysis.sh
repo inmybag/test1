@@ -11,9 +11,12 @@ echo "[$(date)] ========================================" >> $LOG_FILE
 echo "[$(date)] --- 시작: 데일리 멀티 플랫폼 분석 및 트렌드 ---" >> $LOG_FILE
 echo "[$(date)] ========================================" >> $LOG_FILE
 
-# 0단계: 올리브영 실시간 랭킹 수집
+# 0단계: 올리브영 실시간 랭킹 및 네이버 쇼핑 인사이트 수집
 echo "[$(date)] 0단계: 올리브영 실시간 랭킹 수집 시작 (crawl-puppeteer.js)..." >> $LOG_FILE
 /usr/local/bin/node scripts/crawl-puppeteer.js >> $LOG_FILE 2>&1
+
+echo "[$(date)] 0-2단계: 네이버 쇼핑 인사이트 인기검색어 수집 시작 (fetch-naver-shopping-insight.js)..." >> $LOG_FILE
+/usr/local/bin/node scripts/fetch-naver-shopping-insight.js >> $LOG_FILE 2>&1
 
 # 1단계: 플랫폼별 숏폼 수집 (YouTube Shorts / Instagram Reels / TikTok)
 echo "[$(date)] 1단계: 멀티 플랫폼 숏폼 수집 시작 (fetch_shortform.py: YouTube)..." >> $LOG_FILE

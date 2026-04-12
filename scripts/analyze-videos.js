@@ -27,7 +27,8 @@ function calculateScore(views, likes, comments) {
 }
 
 async function analyzeWithGemini(video) {
-  const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+  // Use a modern lite model that works with the free tier in 2026
+  const model = genAI.getGenerativeModel({ model: "gemini-flash-lite-latest" });
   
   const prompt = `
     다음은 숏폼 영상(TikTok, Instagram, YouTube Shorts)의 데이터입니다.

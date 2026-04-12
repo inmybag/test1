@@ -415,23 +415,29 @@ export default function AnalysisPage() {
                 onClick={() => setSelectedVideo(video)}
               >
                 <div className="thumbnail-wrapper">
-                  {video.thumbnail ? (
+                  {video.thumbnail && !video.thumbnail.startsWith('data:image') ? (
                     <img 
                       src={video.thumbnail} 
                       alt={video.title} 
                       className="thumbnail-img"
+                      loading="lazy"
+                      referrerPolicy="no-referrer"
                       onError={(e) => { 
                         if (e.target.src.includes('maxresdefault')) {
                           e.target.src = e.target.src.replace('maxresdefault.webp', 'hqdefault.jpg').replace('maxresdefault.jpg', 'hqdefault.jpg');
                         } else {
                           e.target.style.display='none'; 
-                          e.target.nextSibling.style.display='flex'; 
+                          const fallback = e.target.nextSibling;
+                          if (fallback) fallback.style.display='flex'; 
                         }
                       }}
                     />
                   ) : null}
-                  <div className="thumbnail-fallback" style={{ display: video.thumbnail ? 'none' : 'flex' }}>
-                    <Video size={40} style={{ color: '#334155', opacity: 0.5 }} />
+                  <div className="thumbnail-fallback" style={{ display: (video.thumbnail && !video.thumbnail.startsWith('data:image')) ? 'none' : 'flex' }}>
+                    <div className="fallback-inner">
+                      <Video size={48} style={{ color: '#475569', opacity: 0.4 }} />
+                      <span className="fallback-text">미리보기 준비 중</span>
+                    </div>
                   </div>
                   <div className="card-badges">
 
@@ -1499,6 +1505,30 @@ export default function AnalysisPage() {
           padding: 0.2rem 0.6rem;
           border-radius: 0.5rem;
           border: 1px solid rgba(59, 130, 246, 0.1);
+        }
+
+        .thumbnail-fallback {
+          position: absolute;
+          inset: 0;
+          background: #0f172a;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          border-radius: 1.5rem 1.5rem 0 0;
+        }
+        
+        .fallback-inner {
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          gap: 1rem;
+        }
+        
+        .fallback-text {
+          font-size: 0.75rem;
+          color: #475569;
+          font-weight: 700;
+          letter-spacing: 0.05em;
         }
 
         .custom-scrollbar::-webkit-scrollbar { width: 6px; }

@@ -103,6 +103,9 @@ async function fetchTikTok(browser, keyword_en, keyword_ko, category, count) {
     const q = encodeURIComponent(`${keyword_en} viral 2025`);
     const url = `https://www.tiktok.com/search/video?q=${q}`;
     await page.goto(url, { waitUntil: 'networkidle2', timeout: 30000 });
+    
+    // Scroll down to trigger lazy loading of images
+    await page.evaluate(() => window.scrollBy(0, 500));
     await delay(3000);
     
     const videos = await page.evaluate((category, count, parseMetricFnStr) => {
@@ -123,25 +126,33 @@ async function fetchTikTok(browser, keyword_en, keyword_ko, category, count) {
         const title = titleEl ? titleEl.innerText : "TikTok 벤치마킹 영상";
         
         const thumbEl = el.querySelector('img');
-        const thumbnail = thumbEl ? thumbEl.src : '';
+        let thumbnail = thumbEl ? thumbEl.src : '';
         
+        // Skip placeholders
+        if (thumbnail.startsWith('data:image')) {
+           // Try to find another img or wait for it
+           thumbnail = ''; 
+        }
+
         const viewEl = el.querySelector('strong[data-e2e="video-views"], .video-count, .views');
         const viewCount = viewEl ? parseMetric(viewEl.innerText) : 0;
         
         const rankScore = (count - index) * 1000;
         
-        items.push({
-          platform: 'tiktok',
-          video_id: video_id,
-          url: url,
-          title: title,
-          thumbnail: thumbnail,
-          category: category,
-          view_count: viewCount || rankScore,
-          like_count: 0,
-          comment_count: 0,
-          description: `[TikTok Trending] ${category} 카테고리 최신 영상`
-        });
+        if (thumbnail) {
+          items.push({
+            platform: 'tiktok',
+            video_id: video_id,
+            url: url,
+            title: title,
+            thumbnail: thumbnail,
+            category: category,
+            view_count: viewCount || rankScore,
+            like_count: 0,
+            comment_count: 0,
+            description: `[TikTok Trending] ${category} 카테고리 최신 영상`
+          });
+        }
       });
       return items;
     }, category, count, parseMetric.toString());
@@ -189,7 +200,7 @@ async function fetchInstagram(browser, keyword_en, keyword_ko, category, count) 
         if (!video_id || items.some(i => i.video_id === video_id)) return;
         
         const img = a.querySelector('img');
-        const thumbnail = img ? img.src : '';
+        const thumbnail = (img && !img.src.includes('data:image')) ? img.src : '';
         const desc = img ? img.alt : '';
         
         const rankScore = (count - index) * 5000;
