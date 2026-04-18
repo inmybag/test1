@@ -35,7 +35,7 @@ export async function POST(req) {
 형식: <br><a href="[해당 링크]" class="tsl-btn-view tsl-ai-btn" target="_blank">[향수 코드명] 제품 알아보기</a>`;
 
     const model = genAI.getGenerativeModel({ 
-      model: "gemini-1.5-flash",
+      model: "gemini-2.0-flash-lite-preview-02-05",
       systemInstruction: systemInstruction,
     });
 
