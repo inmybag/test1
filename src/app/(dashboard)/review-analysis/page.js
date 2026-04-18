@@ -495,14 +495,8 @@ export default function ReviewAnalysisPage() {
       attrAgg[name].negativeCount += parseInt(row.negativeCount) || 0;
     });
     const attrChips = Object.entries(attrAgg)
-      .map(([name, c]) => {
-        const count = sentimentFilter === 'positive' ? c.positiveCount
-          : sentimentFilter === 'negative' ? c.negativeCount
-          : sentimentFilter === 'neutral' ? (c.totalCount - c.positiveCount - c.negativeCount)
-          : c.totalCount;
-        return { name, count };
-      })
-      .filter(a => a.count > 0 || (selectedAttribute || []).includes(a.name))
+      .map(([name, c]) => ({ name, count: c.totalCount }))
+      .filter(a => a.count > 0)
       .sort((a, b) => b.count - a.count);
 
     const clearChartFilter = () => { setChartFilterDate(null); setChartFilterPid(null); };
