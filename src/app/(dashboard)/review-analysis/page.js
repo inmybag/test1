@@ -92,6 +92,9 @@ export default function ReviewAnalysisPage() {
     fetchProducts();
   }, []);
 
+  // dashboardData 변경 시 ref 자동 동기화
+  useEffect(() => { dashboardDataRef.current = dashboardData; }, [dashboardData]);
+
   // 모달 열릴 때 body 스크롤 잠금
   useEffect(() => {
     const anyOpen = showReviewModal || showWordCloudModal || showRegenModal;
@@ -141,7 +144,7 @@ export default function ReviewAnalysisPage() {
         case 'dashboard': {
           const res = await fetch(`${base}/dashboard?productIds=${ids}&startDate=${startDate}&endDate=${endDate}`);
           const { data } = await res.json();
-          setDashboardData(data || []);
+          setDashAndRef(data || []);
           break;
         }
         case 'period': {
@@ -834,7 +837,10 @@ export default function ReviewAnalysisPage() {
           const allDash = dashboardDataRef.current.length ? dashboardDataRef.current : dashboardData;
           let dash = pid ? allDash.find(d => String(d.productId) === String(pid)) : null;
           if (!dash) {
-            dash = allDash.find(d => d.productName === p.productName && d.brandName === p.brandName);
+            // productName 기반 폴백 (trim 정규화)
+            dash = allDash.find(d => d.productName?.trim() === p.productName?.trim() && d.brandName?.trim() === p.brandName?.trim())
+                || allDash.find(d => d.productName?.trim() === p.productName?.trim())
+                || allDash[i]; // 인덱스 기반 최후 폴백
             if (dash && !pid) pid = dash.productId;
           }
           const override = pid ? marketingOverrides[pid] : null;

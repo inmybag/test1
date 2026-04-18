@@ -22,16 +22,25 @@ export async function GET(request) {
     // 캐시 키: 정렬된 productIds + 기간
     const reportKey = [...productIds].sort().join(',') + `|${startDate}|${endDate}`;
 
+    // 제품별 대시보드 요약 (캐시에도 productId 보강이 필요하므로 항상 먼저 조회)
+    const dashboard = await getReviewDashboard(productIds, startDate, endDate);
+
     // 캐시 조회 (force=true 이면 스킵)
     if (!force) {
       const cached = await getMarketingReport(reportKey);
       if (cached) {
-        return NextResponse.json({ data: cached.report_data, cached: true, updatedAt: cached.updated_at });
+        const cachedData = cached.report_data;
+        // productId 없는 항목 보강 (이전 캐시 또는 AI가 누락한 경우)
+        if (cachedData?.products?.length > 0) {
+          cachedData.products = cachedData.products.map((p, i) => {
+            if (p.productId) return p;
+            const d = dashboard.find(d => d.productName?.trim() === p.productName?.trim()) || dashboard[i];
+            return { ...p, productId: d?.productId ?? null };
+          });
+        }
+        return NextResponse.json({ data: cachedData, cached: true, updatedAt: cached.updated_at });
       }
     }
-
-    // 제품별 대시보드 요약
-    const dashboard = await getReviewDashboard(productIds, startDate, endDate);
 
     // 제품 × 속성 VoC 데이터 (긍/부정 키워드 포함)
     const attrStats = await getAttributeStatsByProduct(productIds, startDate, endDate);
