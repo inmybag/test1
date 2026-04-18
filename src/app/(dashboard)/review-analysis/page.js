@@ -1042,15 +1042,11 @@ export default function ReviewAnalysisPage() {
   // ── 모달: 워드클라우드 ────────────────────────────
   const renderWordCloudModal = () => {
     if (!showWordCloudModal) return null;
-    const options = {
-      colors: CHART_COLORS, enableTooltip: true, deterministic: true,
-      fontFamily: 'sans-serif', fontSizes: [15, 60], fontWeight: 'bold',
-      padding: 4, rotations: 2, rotationAngles: [0, 0],
-      scale: 'sqrt', spiral: 'archimedean', transitionDuration: 500,
-    };
     const safeWords = (wordCloudData || [])
       .filter(w => w.value > 0 && w.text)
+      .map(w => ({ text: String(w.text), value: Number(w.value) }))
       .slice(0, 50);
+
     return (
       <div className="ra-modal-overlay" onClick={() => setShowWordCloudModal(false)}>
         <div className="ra-modal-content" onClick={e => e.stopPropagation()}>
@@ -1062,8 +1058,16 @@ export default function ReviewAnalysisPage() {
             {safeWords.length > 0 ? (
               <div style={{ width: '100%', height: 400 }}>
                 <ReactWordcloud
-                  options={options}
                   words={safeWords}
+                  options={{
+                    rotations: 2,
+                    rotationAngles: [-90, 0],
+                    colors: CHART_COLORS,
+                    enableTooltip: true,
+                    deterministic: false,
+                    fontFamily: 'sans-serif',
+                    fontSizes: [16, 60]
+                  }}
                   callbacks={{
                     onWordClick: (word) => {
                       setShowWordCloudModal(false);
