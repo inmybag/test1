@@ -161,11 +161,11 @@ async function main() {
             // 너무 오래된 리뷰 통과
             if (reviewDate < '2025-01-01') continue;
 
-            // 데모 목적으로 최근 30일 내 배치
-            if (reviewDate < CUTOFF_DATE) {
-              const randomDays = Math.floor(Math.random() * 30);
-              reviewDate = getDateDaysAgo(randomDays);
-            }
+            // 날짜 랜덤 로직 제거 (실제 데이터 정합성 유지)
+            // if (reviewDate < CUTOFF_DATE) {
+            //   const randomDays = Math.floor(Math.random() * 30);
+            //   reviewDate = getDateDaysAgo(randomDays);
+            // }
 
             let mediaUrls = [];
             if (raw.images && raw.images.length > 0) {
@@ -215,8 +215,15 @@ async function main() {
               INSERT INTO product_reviews (product_id, review_date, rating, review_text, reviewer_nickname, extra_info, media_urls, sentiment, sentiment_score, attributes, source_highlight)
               VALUES (${product.id}, ${r.review_date}, ${r.rating}, ${r.review_text}, ${r.reviewer_nickname},
                 ${JSON.stringify(r.extra_info || {})}, ${JSON.stringify(r.media_urls || [])},
-                ${r.sentiment}, ${r.sentiment_score}, ${JSON.stringify(r.attributes || [])}, ${JSON.stringify(r.source_highlight || [])})
-              ON CONFLICT DO NOTHING`;
+                ${r.sentiment}, ${r.sentiment_score}, ${JSON.stringify(r.attributes || [])}, ${JSON.stringify(r.source_highlight || [])}
+              )
+              ON CONFLICT ON CONSTRAINT idx_review_unique 
+              DO UPDATE SET 
+                media_urls = EXCLUDED.media_urls,
+                extra_info = EXCLUDED.extra_info,
+                attributes = EXCLUDED.attributes,
+                source_highlight = EXCLUDED.source_highlight,
+                rating = EXCLUDED.rating`;
             saved++;
           } catch(e) {}
         }
@@ -317,11 +324,11 @@ async function main() {
 
           if (reviewDate < '2025-01-01') continue;
 
-          // 데모 차트 분포 분산
-          if (reviewDate < CUTOFF_DATE) {
-            const randomDays = Math.floor(Math.random() * 30);
-            reviewDate = getDateDaysAgo(randomDays);
-          }
+          // 날짜 랜덤 로직 제거
+            // if (reviewDate < CUTOFF_DATE) {
+            //   const randomDays = Math.floor(Math.random() * 30);
+            //   reviewDate = getDateDaysAgo(randomDays);
+            // }
 
           let mediaUrls = raw.reviewAttaches ? raw.reviewAttaches.map(a => a.attachPath) : [];
           
@@ -364,8 +371,15 @@ async function main() {
               INSERT INTO product_reviews (product_id, review_date, rating, review_text, reviewer_nickname, extra_info, media_urls, sentiment, sentiment_score, attributes, source_highlight)
               VALUES (${product.id}, ${r.review_date}, ${r.rating}, ${r.review_text}, ${r.reviewer_nickname},
                 ${JSON.stringify(r.extra_info || {})}, ${JSON.stringify(r.media_urls || [])},
-                ${r.sentiment}, ${r.sentiment_score}, ${JSON.stringify(r.attributes || [])}, ${JSON.stringify(r.source_highlight || [])})
-              ON CONFLICT DO NOTHING`;
+                ${r.sentiment}, ${r.sentiment_score}, ${JSON.stringify(r.attributes || [])}, ${JSON.stringify(r.source_highlight || [])}
+              )
+              ON CONFLICT ON CONSTRAINT idx_review_unique 
+              DO UPDATE SET 
+                media_urls = EXCLUDED.media_urls,
+                extra_info = EXCLUDED.extra_info,
+                attributes = EXCLUDED.attributes,
+                source_highlight = EXCLUDED.source_highlight,
+                rating = EXCLUDED.rating`;
             saved++;
           } catch(e) {}
         }
@@ -458,16 +472,22 @@ async function main() {
           continue; // 너무 오래된 리뷰 패스
         }
 
-        // 데모 목적으로 날짜를 최근 30일 이내로 조정 (활발한 차트 시각화를 위해)
-        if (reviewDate < CUTOFF_DATE) {
-           // 랜덤하게 지난 30일 중 하루 지정
-           const randomDays = Math.floor(Math.random() * 30);
-           reviewDate = getDateDaysAgo(randomDays);
-        }
-
-        const mediaUrls = (raw.photoReviewList || []).map(p =>
-          `https://image.oliveyoung.co.kr/uploads/images/goods/review/${p.imagePath}`
-        );
+        // 데모 목적으로 날짜를 최근 30일 이내로 조정했었으나 (정합성을 위해 제거)
+        // if (reviewDate < CUTOFF_DATE) {
+        //    const randomDays = Math.floor(Math.random() * 30);
+        //    reviewDate = getDateDaysAgo(randomDays);
+        // }
+        const mediaUrls = (raw.photoReviewList || []).map(p => {
+          let fullPath = p.imagePath;
+          if (!fullPath.startsWith('http')) {
+            // uploads/ 가 이미 포함되어 있으면 도메인만, 없으면 기본 goods/review 경로 추가
+            if (!fullPath.includes('uploads/')) {
+              fullPath = `uploads/images/goods/review/${fullPath}`;
+            }
+            fullPath = `https://image.oliveyoung.co.kr/${fullPath}`;
+          }
+          return fullPath.includes('?') ? fullPath : `${fullPath}?RS=500x0&q=85&sf=webp`;
+        });
 
         allReviews.push({
           review_text: raw.content || '',

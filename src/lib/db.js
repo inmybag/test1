@@ -437,7 +437,13 @@ export async function saveProductReviews(reviews) {
           ${r.sentiment}, ${r.sentiment_score}, ${JSON.stringify(r.attributes || [])},
           ${JSON.stringify(r.source_highlight || [])}
         )
-        ON CONFLICT ON CONSTRAINT idx_review_unique DO NOTHING;
+        ON CONFLICT ON CONSTRAINT idx_review_unique 
+        DO UPDATE SET 
+          media_urls = EXCLUDED.media_urls,
+          extra_info = EXCLUDED.extra_info,
+          attributes = EXCLUDED.attributes,
+          source_highlight = EXCLUDED.source_highlight,
+          rating = EXCLUDED.rating;
       `;
     }
     return true;
