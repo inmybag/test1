@@ -828,12 +828,14 @@ export default function ReviewAnalysisPage() {
 
         {products_list.map((rawP, i) => {
           const p = getMktProduct(rawP, i);
-          const pid = p.productId;
+          let pid = p.productId;
+          let dash = pid ? dashboardData.find(d => String(d.productId) === String(pid)) : null;
+          if (!dash) {
+            dash = dashboardData.find(d => d.productName === p.productName && d.brandName === p.brandName);
+            if (dash && !pid) pid = dash.productId;
+          }
           const override = pid ? marketingOverrides[pid] : null;
           const displayUpdatedAt = override?.updatedAt || (i === 0 ? marketingData.updatedAt : null);
-
-          // 대시보드 통계 매칭
-          const dash = dashboardData.find(d => String(d.productId) === String(pid));
           const total = dash ? parseInt(dash.totalReviews) || 0 : null;
           const pos = dash ? parseInt(dash.positiveCount) || 0 : null;
           const posRate = total > 0 ? Math.round(pos / total * 100) : null;
@@ -880,6 +882,8 @@ export default function ReviewAnalysisPage() {
                   </button>
                 </div>
               </div>
+
+              {p.summary && <p className="ra-mkt-summary" style={{ marginBottom: '2rem' }}>{p.summary}</p>}
 
               {/* 대시보드 기본 정보 (레이아웃 차용) */}
               {dash && (
@@ -930,8 +934,6 @@ export default function ReviewAnalysisPage() {
                    </div>
                 </div>
               )}
-
-              {p.summary && <p className="ra-mkt-summary" style={{ marginBottom: '2rem' }}>{p.summary}</p>}
 
               <div className="ra-mkt-grid">
                 {/* VoC 개선 */}
