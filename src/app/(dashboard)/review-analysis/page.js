@@ -123,16 +123,17 @@ export default function ReviewAnalysisPage() {
         case 'sentiment': {
           const params = new URLSearchParams({ productIds: ids, startDate, endDate });
           if (selectedAttribute) params.set('attribute', selectedAttribute);
-          const [sentRes, periodRes] = await Promise.all([
+          const [sentRes, periodRes, vocRes] = await Promise.all([
             fetch(`${base}/sentiment?${params}`),
             fetch(`${base}/period?productIds=${ids}&startDate=${startDate}&endDate=${endDate}&page=1`),
+            fetch(`${base}/voc?productIds=${ids}&startDate=${startDate}&endDate=${endDate}`),
           ]);
           const sentJson = await sentRes.json();
           const periodJson = await periodRes.json();
+          const vocJson = await vocRes.json();
           setSentimentData(sentJson || { attributeStats: [], attributeReviews: [] });
-          if (periodJson?.periodData?.length > 0) {
-            setPeriodData(periodJson);
-          }
+          if (periodJson?.periodData?.length > 0) setPeriodData(periodJson);
+          if (vocJson?.data?.length > 0) setVocData(vocJson.data);
           break;
         }
         case 'voc': {
@@ -610,22 +611,16 @@ export default function ReviewAnalysisPage() {
       },
     };
 
-    // 속성별 긍/부정 비율 가로 막대 차트
-    const attrBarData = {
-      labels: (attributeStats || []).slice(0, 8).map(a => a.name),
-      datasets: [
-        {
-          label: '긍정',
-          data: (attributeStats || []).slice(0, 8).map(a => a.positiveRate || 0),
-          backgroundColor: '#4A90D9',
-        },
-        {
-          label: '부정',
-          data: (attributeStats || []).slice(0, 8).map(a => a.negativeRate || 0),
-          backgroundColor: '#E8734A',
-        },
-      ],
-    };
+    // 제품별 속성 데이터 그룹핑 (vocData 활용)
+    const productAttrMap = {};
+    (vocData || []).forEach(row => {
+      const key = String(row.productId);
+      if (!productAttrMap[key]) {
+        productAttrMap[key] = { productName: row.productName, brandName: row.brandName, attrs: [] };
+      }
+      productAttrMap[key].attrs.push(row);
+    });
+    const productAttrList = Object.entries(productAttrMap);
 
     const barChartOpts = {
       responsive: true,
@@ -633,11 +628,10 @@ export default function ReviewAnalysisPage() {
       indexAxis: 'y',
       plugins: {
         legend: { labels: { color: '#e2e8f0' } },
-        title: { display: true, text: '긍/부정 비율', color: '#f8fafc', font: { size: 14, weight: 'bold' } },
       },
       scales: {
         x: { stacked: true, max: 100, ticks: { color: '#94a3b8', callback: v => v + '%' }, grid: { color: 'rgba(255,255,255,0.05)' } },
-        y: { stacked: true, ticks: { color: '#e2e8f0' }, grid: { display: false } },
+        y: { stacked: true, ticks: { color: '#e2e8f0', font: { size: 11 } }, grid: { display: false } },
       },
     };
 
@@ -663,14 +657,32 @@ export default function ReviewAnalysisPage() {
             </div>
           </div>
         </div>
-        <div className="ra-sentiment-ratio glass-panel">
-          <div style={{ height: 350 }}>
-            {(attributeStats || []).length > 0 ? (
-              <Bar data={attrBarData} options={barChartOpts} />
-            ) : (
-              <div className="ra-empty-state">속성 데이터가 없습니다.</div>
-            )}
-          </div>
+        <div className="ra-sentiment-ratio-list">
+          {productAttrList.length === 0 ? (
+            <div className="ra-empty-state glass-panel">속성 데이터가 없습니다.</div>
+          ) : (
+            productAttrList.map(([pid, { productName, brandName, attrs }]) => {
+              const top = attrs.slice(0, 10);
+              const barData = {
+                labels: top.map(a => a.attributeName),
+                datasets: [
+                  { label: '긍정', data: top.map(a => a.positiveRate || 0), backgroundColor: '#4A90D9' },
+                  { label: '부정', data: top.map(a => a.negativeRate || 0), backgroundColor: '#E8734A' },
+                ],
+              };
+              const chartHeight = Math.max(200, top.length * 32);
+              return (
+                <div key={pid} className="ra-sentiment-ratio glass-panel">
+                  <p className="ra-sentiment-product-label">
+                    <span className="ra-dash-brand">{brandName}</span> {productName}
+                  </p>
+                  <div style={{ height: chartHeight }}>
+                    <Bar data={barData} options={barChartOpts} />
+                  </div>
+                </div>
+              );
+            })
+          )}
         </div>
       </div>
     );

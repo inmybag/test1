@@ -1,8 +1,8 @@
 import '../styles/globals.css';
 
 export const metadata = {
-  title: 'TISLO AI 소믈리에',
-  description: '티슬로가 제안하는 당신만을 위한 특별한 향기',
+  title: '애경 마케팅부문 AI',
+  description: '애경 마케팅부문 AI 자동화 플랫폼',
 };
 
 export default function RootLayout({ children }) {

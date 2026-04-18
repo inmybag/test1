@@ -11,8 +11,6 @@ export async function POST(req) {
       return NextResponse.json({ error: "Prompt is required" }, { status: 400 });
     }
 
-    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
-
     const systemInstruction = `당신은 TISLO(티슬로)의 수석 향수 소믈리에입니다.
 사용자가 원하는 분위기, 계절, 기억 등을 입력하면, TISLO의 12가지 향수 중 가장 잘 어울리는 1~2가지를 추천해주세요.
 답변은 친절하고 시적이며 고급스러운 톤으로 작성해주세요.
@@ -36,11 +34,12 @@ export async function POST(req) {
 2. 추천하는 향수 소개의 맨 마지막 줄에 반드시 아래 HTML 태그 형식을 그대로 사용하여 '제품 알아보기' 버튼을 추가해주세요. (여러 개를 추천했다면 각각의 버튼을 연달아 넣어주세요.)
 형식: <br><a href="[해당 링크]" class="tsl-btn-view tsl-ai-btn" target="_blank">[향수 코드명] 제품 알아보기</a>`;
 
-    const result = await model.generateContent({
-      contents: [{ role: "user", parts: [{ text: prompt }] }],
+    const model = genAI.getGenerativeModel({ 
+      model: "gemini-1.5-flash",
       systemInstruction: systemInstruction,
     });
 
+    const result = await model.generateContent(prompt);
     const response = await result.response;
     const text = response.text();
 
