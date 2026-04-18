@@ -152,7 +152,7 @@ async function main() {
             product.thumbnail_url = thumb; // 메모리 갱신
           }
 
-          console.log(`  [API] ${reviews.length}건 수취`);
+          console.log(`  [API] ${reviews.length}건 수취, 데이터 샘플: ${JSON.stringify(reviews[0], null, 2)}`);
 
           for (const raw of reviews) {
             let reviewDate = raw.created_at ? raw.created_at.split('T')[0] : null;
@@ -167,7 +167,14 @@ async function main() {
               reviewDate = getDateDaysAgo(randomDays);
             }
 
-            const mediaUrls = raw.media ? raw.media.map(m => m.url || m.video_url || m.image_url) : [];
+            let mediaUrls = [];
+            if (raw.images && raw.images.length > 0) {
+              mediaUrls = [...mediaUrls, ...raw.images.map(img => img.url).filter(u => u)];
+            }
+            if (raw.videos && raw.videos.length > 0) {
+              mediaUrls = [...mediaUrls, ...raw.videos.map(vid => vid.url).filter(u => u)];
+            }
+            
             const skinInfo = raw.evaluation_properties ? 
               raw.evaluation_properties.reduce((acc, prop) => ({...acc, [prop.name]: prop.value}), {}) : {};
 
@@ -177,7 +184,7 @@ async function main() {
               reviewer_nickname: raw.user_display_name || '익명',
               review_date: reviewDate,
               extra_info: { ...skinInfo, option: raw.options || '' },
-              media_urls: mediaUrls.filter(u => u)
+              media_urls: mediaUrls
             });
           }
         } catch (e) {
@@ -302,7 +309,7 @@ async function main() {
         }
 
         const reviews = apiResult.contents;
-        console.log(`  [API] ${reviews.length}건 수취`);
+        console.log(`  [API] ${reviews.length}건 수취, 데이터 샘플: ${JSON.stringify(reviews[0], null, 2)}`);
 
         for (const raw of reviews) {
           let reviewDate = raw.createDate ? raw.createDate.split('T')[0] : null;

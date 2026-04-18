@@ -417,6 +417,8 @@ export default function ReviewAnalysisPage() {
                                 controls={false} 
                                 muted 
                                 loop 
+                                playsInline
+                                referrerPolicy="no-referrer"
                                 onMouseOver={(e) => e.target.play()} 
                                 onMouseOut={(e) => { e.target.pause(); e.target.currentTime = 0; }}
                                 className="ra-review-video"
@@ -424,7 +426,13 @@ export default function ReviewAnalysisPage() {
                               <div className="ra-video-badge">VIDEO</div>
                             </div>
                           ) : (
-                            <img src={url} alt={`review-media-\${mi}`} className="ra-review-img" loading="lazy" />
+                            <img 
+                              src={url} 
+                              alt={`review-media-\${mi}`} 
+                              className="ra-review-img" 
+                              loading="lazy" 
+                              referrerPolicy="no-referrer"
+                            />
                           )}
                         </div>
                       );
