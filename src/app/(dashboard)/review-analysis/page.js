@@ -903,7 +903,11 @@ export default function ReviewAnalysisPage() {
                        <div style={{ wordBreak: 'keep-all' }}>
                          <span className="ra-dash-brand" style={{ fontSize: '0.8rem', color: '#94a3b8' }}>{dash.brandName}</span>
                          <h4 style={{ margin: '0.2rem 0 0 0', fontSize: '1rem', lineHeight: '1.4' }}>{dash.productName}</h4>
-                         {override?.page_url && <a href={override.page_url} target="_blank" rel="noreferrer" className="ra-external-link" style={{ fontSize: '0.75rem', marginTop: '0.5rem', display: 'inline-block' }}>상품 상세 보기 ↗</a>}
+                          {(() => {
+                            const prod = products.find(pr => String(pr.id) === String(pid));
+                            const url = prod?.page_url || override?.page_url;
+                            return url ? <a href={url} target="_blank" rel="noreferrer" className="ra-external-link" style={{ fontSize: '0.75rem', marginTop: '0.5rem', display: 'inline-block' }}>상품 상세 보기 ↗</a> : null;
+                          })()}
                        </div>
                      </div>
                      <div className="ra-dash-stat" style={{ marginTop: '1.5rem', display: 'flex', alignItems: 'flex-end', gap: '0.5rem' }}>
