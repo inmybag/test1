@@ -40,10 +40,12 @@ export default function ReviewAnalysisPage() {
 
   // 탭별 데이터
   const [dashboardData, setDashboardData] = useState([]);
+  const dashboardDataRef = useRef([]);  // marketing 렌더링 시 즉시 참조용
+  const setDashAndRef = (data) => { dashboardDataRef.current = data; setDashboardData(data); };
   const [periodData, setPeriodData] = useState({ periodData: [], reviews: [] });
   const [vocData, setVocData] = useState([]);
-  const [marketingData, setMarketingData] = useState(null);       // combined report
-  const [marketingOverrides, setMarketingOverrides] = useState({}); // { [pid]: productData+meta }
+  const [marketingData, setMarketingData] = useState(null);
+  const [marketingOverrides, setMarketingOverrides] = useState({});
 
   const [loading, setLoading] = useState(false);
 
@@ -177,14 +179,15 @@ export default function ReviewAnalysisPage() {
           break;
         }
         case 'marketing': {
-          // 대시보드 데이터가 없으면 같이 로드
-          if (!dashboardData.length) {
+          // 대시보드데이터 없으면 먹저 로드한 뒤 marketing 요청
+          let freshDash = dashboardDataRef.current;
+          if (!freshDash.length) {
             const dRes = await fetch(`${base}/dashboard?productIds=${ids}&startDate=${startDate}&endDate=${endDate}`);
             const dJson = await dRes.json();
-            setDashboardData(dJson.data || []);
+            freshDash = dJson.data || [];
+            setDashAndRef(freshDash);
           }
           if (opts.force && opts.productId) {
-            // 제품별 재생성
             const url = `${base}/marketing?productIds=${opts.productId}&startDate=${startDate}&endDate=${endDate}&force=true`;
             const res = await fetch(url);
             const json = await res.json();
@@ -193,7 +196,6 @@ export default function ReviewAnalysisPage() {
               setMarketingOverrides(prev => ({ ...prev, [opts.productId]: { ...prod, updatedAt: json.updatedAt } }));
             }
           } else {
-            // 전체 로드
             const url = `${base}/marketing?productIds=${ids}&startDate=${startDate}&endDate=${endDate}`;
             const res = await fetch(url);
             const json = await res.json();
@@ -829,9 +831,10 @@ export default function ReviewAnalysisPage() {
         {products_list.map((rawP, i) => {
           const p = getMktProduct(rawP, i);
           let pid = p.productId;
-          let dash = pid ? dashboardData.find(d => String(d.productId) === String(pid)) : null;
+          const allDash = dashboardDataRef.current.length ? dashboardDataRef.current : dashboardData;
+          let dash = pid ? allDash.find(d => String(d.productId) === String(pid)) : null;
           if (!dash) {
-            dash = dashboardData.find(d => d.productName === p.productName && d.brandName === p.brandName);
+            dash = allDash.find(d => d.productName === p.productName && d.brandName === p.brandName);
             if (dash && !pid) pid = dash.productId;
           }
           const override = pid ? marketingOverrides[pid] : null;
