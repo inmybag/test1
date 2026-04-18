@@ -550,13 +550,13 @@ export async function getAttributeStats(productIds, startDate, endDate) {
   if (!isProd) return [];
   try {
     const { rows } = await sql.query(`
-      SELECT 
+      SELECT
         attr->>'name' as "attributeName",
         attr->>'sentiment' as "sentiment",
         COUNT(*) as "count"
-      FROM product_reviews pr,
+      FROM product_reviews pr
+      JOIN review_products rp ON rp.id = pr.product_id,
         jsonb_array_elements(pr.attributes) as attr
-      JOIN review_products rp ON rp.id = pr.product_id
       WHERE rp.id = ANY($1::int[]) AND pr.review_date >= $2 AND pr.review_date <= $3
       GROUP BY attr->>'name', attr->>'sentiment'
       ORDER BY "count" DESC
@@ -572,12 +572,12 @@ export async function getTopAttributes(productIds, startDate, endDate) {
   if (!isProd) return { positive: [], negative: [] };
   try {
     const { rows: positive } = await sql.query(`
-      SELECT 
+      SELECT
         attr->>'name' as "name",
         COUNT(*) as "count"
-      FROM product_reviews pr,
+      FROM product_reviews pr
+      JOIN review_products rp ON rp.id = pr.product_id,
         jsonb_array_elements(pr.attributes) as attr
-      JOIN review_products rp ON rp.id = pr.product_id
       WHERE rp.id = ANY($1::int[]) AND pr.review_date >= $2 AND pr.review_date <= $3
         AND attr->>'sentiment' = 'positive'
       GROUP BY attr->>'name'
@@ -586,12 +586,12 @@ export async function getTopAttributes(productIds, startDate, endDate) {
     `, [productIds, startDate, endDate]);
 
     const { rows: negative } = await sql.query(`
-      SELECT 
+      SELECT
         attr->>'name' as "name",
         COUNT(*) as "count"
-      FROM product_reviews pr,
+      FROM product_reviews pr
+      JOIN review_products rp ON rp.id = pr.product_id,
         jsonb_array_elements(pr.attributes) as attr
-      JOIN review_products rp ON rp.id = pr.product_id
       WHERE rp.id = ANY($1::int[]) AND pr.review_date >= $2 AND pr.review_date <= $3
         AND attr->>'sentiment' = 'negative'
       GROUP BY attr->>'name'
@@ -617,9 +617,9 @@ export async function getAttributeStatsByProduct(productIds, startDate, endDate)
         attr->>'name' as "attributeName",
         attr->>'sentiment' as "sentiment",
         COUNT(*) as "count"
-      FROM product_reviews pr,
+      FROM product_reviews pr
+      JOIN review_products rp ON rp.id = pr.product_id,
         jsonb_array_elements(pr.attributes) as attr
-      JOIN review_products rp ON rp.id = pr.product_id
       WHERE rp.id = ANY($1::int[]) AND pr.review_date >= $2 AND pr.review_date <= $3
       GROUP BY rp.id, rp.product_name, rp.brand_name, attr->>'name', attr->>'sentiment'
       ORDER BY rp.id, COUNT(*) DESC

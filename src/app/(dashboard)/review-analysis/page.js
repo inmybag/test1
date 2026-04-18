@@ -80,7 +80,7 @@ export default function ReviewAnalysisPage() {
     if (selectedProducts.length > 0 && startDate && endDate) {
       fetchTabData(activeTab);
     }
-  }, [selectedProducts, startDate, endDate, activeTab]);
+  }, [selectedProducts, startDate, endDate, activeTab, sentimentFilter, selectedAttribute]);
 
   const fetchProducts = async () => {
     try {
@@ -123,9 +123,16 @@ export default function ReviewAnalysisPage() {
         case 'sentiment': {
           const params = new URLSearchParams({ productIds: ids, startDate, endDate });
           if (selectedAttribute) params.set('attribute', selectedAttribute);
-          const res = await fetch(`${base}/sentiment?${params}`);
-          const data = await res.json();
-          setSentimentData(data || { attributeStats: [], attributeReviews: [] });
+          const [sentRes, periodRes] = await Promise.all([
+            fetch(`${base}/sentiment?${params}`),
+            fetch(`${base}/period?productIds=${ids}&startDate=${startDate}&endDate=${endDate}&page=1`),
+          ]);
+          const sentJson = await sentRes.json();
+          const periodJson = await periodRes.json();
+          setSentimentData(sentJson || { attributeStats: [], attributeReviews: [] });
+          if (periodJson?.periodData?.length > 0) {
+            setPeriodData(periodJson);
+          }
           break;
         }
         case 'voc': {
@@ -366,7 +373,7 @@ export default function ReviewAnalysisPage() {
               return (
                 <button
                   key={label}
-                  className={`ra-filter-chip \${sentimentFilter === val ? 'active' : ''}`}
+                  className={`ra-filter-chip ${sentimentFilter === val ? 'active' : ''}`}
                   onClick={() => { setSentimentFilter(val); }}
                 >
                   {label}
@@ -381,7 +388,7 @@ export default function ReviewAnalysisPage() {
               {sentimentData.attributeStats.slice(0, 8).map(attr => (
                 <button
                   key={attr.name}
-                  className={`ra-attr-tag \${selectedAttribute === attr.name ? 'active' : ''}`}
+                  className={`ra-attr-tag ${selectedAttribute === attr.name ? 'active' : ''}`}
                   onClick={() => setSelectedAttribute(selectedAttribute === attr.name ? null : attr.name)}
                 >
                   {attr.name} ({attr.total})
@@ -399,7 +406,7 @@ export default function ReviewAnalysisPage() {
                 <div className="ra-review-header">
                   <div className="ra-review-meta-left">
                     <span className="ra-review-date">{review.reviewDate}</span>
-                    <span className={`ra-sentiment-badge \${review.sentiment}`}>{review.sentiment === 'positive' ? '긍정' : review.sentiment === 'negative' ? '부정' : '중립'}</span>
+                    <span className={`ra-sentiment-badge ${review.sentiment}`}>{review.sentiment === 'positive' ? '긍정' : review.sentiment === 'negative' ? '부정' : '중립'}</span>
                     <span className="ra-rating">★ {review.rating}</span>
                   </div>
                   <div className="ra-review-meta-right">
@@ -420,7 +427,7 @@ export default function ReviewAnalysisPage() {
                 </div>
                 <div className="ra-review-tags">
                   {(review.attributes || []).map((attr, ai) => (
-                    <span key={ai} className={`ra-review-attr-tag \${attr.sentiment}`}>
+                    <span key={ai} className={`ra-review-attr-tag ${attr.sentiment}`}>
                       {attr.name} — {attr.sentiment === 'positive' ? '긍정' : attr.sentiment === 'negative' ? '부정' : '중립'}
                     </span>
                   ))}

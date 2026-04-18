@@ -15,7 +15,7 @@ export default function AISommelier() {
     setResult('');
 
     try {
-      const response = await fetch('/api/ai-sommelier', {
+      const response = await fetch('https://test1-lime-sigma.vercel.app/api/ai-sommelier', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
