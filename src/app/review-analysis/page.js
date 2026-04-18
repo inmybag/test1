@@ -403,6 +403,34 @@ export default function ReviewAnalysisPage() {
                     </span>
                   ))}
                 </div>
+
+                {review.mediaUrls && review.mediaUrls.length > 0 && (
+                  <div className="ra-review-media-gallery">
+                    {review.mediaUrls.map((url, mi) => {
+                      const isVideo = url.toLowerCase().match(/\.(mp4|mov|webm|ogg)$/) || url.includes('video') || url.includes('crema.me/v/');
+                      return (
+                        <div key={mi} className="ra-review-media-item">
+                          {isVideo ? (
+                            <div className="ra-video-wrapper">
+                              <video 
+                                src={url} 
+                                controls={false} 
+                                muted 
+                                loop 
+                                onMouseOver={(e) => e.target.play()} 
+                                onMouseOut={(e) => { e.target.pause(); e.target.currentTime = 0; }}
+                                className="ra-review-video"
+                              />
+                              <div className="ra-video-badge">VIDEO</div>
+                            </div>
+                          ) : (
+                            <img src={url} alt={`review-media-\${mi}`} className="ra-review-img" loading="lazy" />
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
             )})}
             {(!reviews || reviews.length === 0) && (

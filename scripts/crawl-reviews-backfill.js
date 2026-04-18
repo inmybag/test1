@@ -167,7 +167,7 @@ async function main() {
               reviewDate = getDateDaysAgo(randomDays);
             }
 
-            const mediaUrls = raw.media ? raw.media.map(m => m.url) : [];
+            const mediaUrls = raw.media ? raw.media.map(m => m.url || m.video_url || m.image_url) : [];
             const skinInfo = raw.evaluation_properties ? 
               raw.evaluation_properties.reduce((acc, prop) => ({...acc, [prop.name]: prop.value}), {}) : {};
 
@@ -177,7 +177,7 @@ async function main() {
               reviewer_nickname: raw.user_display_name || '익명',
               review_date: reviewDate,
               extra_info: { ...skinInfo, option: raw.options || '' },
-              media_urls: mediaUrls
+              media_urls: mediaUrls.filter(u => u)
             });
           }
         } catch (e) {
@@ -316,7 +316,13 @@ async function main() {
             reviewDate = getDateDaysAgo(randomDays);
           }
 
-          const mediaUrls = raw.reviewAttaches ? raw.reviewAttaches.map(a => a.attachPath) : [];
+          let mediaUrls = raw.reviewAttaches ? raw.reviewAttaches.map(a => a.attachPath) : [];
+          
+          // 네이버 비디오 추가 수집
+          if (raw.reviewVideos && raw.reviewVideos.length > 0) {
+            const videoUrls = raw.reviewVideos.map(v => v.videoUrl || v.apiUrl).filter(u => u);
+            mediaUrls = [...mediaUrls, ...videoUrls];
+          }
 
           allReviews.push({
             review_text: raw.reviewContent || '',
