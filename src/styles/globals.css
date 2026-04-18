@@ -453,6 +453,9 @@ input[type="date"] {
   z-index: 100;
   border-radius: 12px;
   padding: 0.5rem;
+  background-color: #1e293b;
+  border: 1px solid var(--glass-border);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
 }
 
 .ra-dropdown-item {
