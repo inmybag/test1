@@ -1,13 +1,12 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import dynamic from 'next/dynamic';
-import { Settings, Calendar, ChevronDown, X, TrendingUp, TrendingDown, BarChart3, MessageSquare, Megaphone, Loader2, Info, Star } from 'lucide-react';
+import { Settings, Calendar, ChevronDown, X, TrendingUp, TrendingDown, BarChart3, MessageSquare, Megaphone, Loader2, Star, Lock, ExternalLink } from 'lucide-react';
 import { Chart as ChartJS, CategoryScale, LinearScale, PointElement, LineElement, BarElement, Title, Tooltip, Legend, Filler } from 'chart.js';
 import { Line, Bar } from 'react-chartjs-2';
 import ProductUrlManager from './ProductUrlManager';
 
-// Dynamic import for react-wordcloud to avoid SSR issues
 const ReactWordcloud = dynamic(() => import('react-wordcloud'), { ssr: false });
 
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, BarElement, Title, Tooltip, Legend, Filler);
@@ -16,11 +15,20 @@ const TABS = [
   { id: 'dashboard', label: '대시보드', icon: BarChart3 },
   { id: 'period', label: '기간별 분석', icon: TrendingUp },
   { id: 'sentiment', label: '긍/부정 분석', icon: TrendingDown },
-  { id: 'voc', label: 'VoC 심층분석', icon: MessageSquare },
+  { id: 'voc', label: 'VoC 분석', icon: MessageSquare },
   { id: 'marketing', label: 'AI 전략리포트', icon: Megaphone },
 ];
 
 const CHART_COLORS = ['#9dce63', '#639dce', '#50C878', '#9B59B6', '#F39C12', '#1ABC9C', '#E74C3C', '#3498DB'];
+
+const DARK_CHART_DEFAULTS = {
+  responsive: true, maintainAspectRatio: false,
+  plugins: { legend: { labels: { color: '#e2e8f0', font: { size: 10 } } } },
+  scales: {
+    x: { ticks: { color: '#94a3b8', font: { size: 9 } }, grid: { color: 'rgba(255,255,255,0.04)' } },
+    y: { ticks: { color: '#94a3b8' }, grid: { color: 'rgba(255,255,255,0.04)' }, beginAtZero: true },
+  },
+};
 
 export default function ReviewAnalysisPage() {
   const [activeTab, setActiveTab] = useState('dashboard');
@@ -30,76 +38,103 @@ export default function ReviewAnalysisPage() {
   const [showUrlManager, setShowUrlManager] = useState(false);
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
-  
+
+  // 탭별 데이터
   const [dashboardData, setDashboardData] = useState([]);
   const [periodData, setPeriodData] = useState({ periodData: [], reviews: [] });
-  const [sentimentData, setSentimentData] = useState({ attributeStats: [], attributeReviews: [] });
   const [vocData, setVocData] = useState([]);
-  const [marketingData, setMarketingData] = useState(null);
+  const [marketingData, setMarketingData] = useState(null);       // combined report
+  const [marketingOverrides, setMarketingOverrides] = useState({}); // { [pid]: productData+meta }
 
   const [loading, setLoading] = useState(false);
-  const [sentimentFilter, setSentimentFilter] = useState(null);
-  const [selectedAttribute, setSelectedAttribute] = useState(null);
 
+  const [sentimentFilter, setSentimentFilter] = useState(null);
+  const [selectedAttribute, setSelectedAttribute] = useState([]);
+  const [chartFilterDate, setChartFilterDate] = useState(null);
+  const [chartFilterPid, setChartFilterPid] = useState(null);
+
+  // VoC 상세
   const [selectedVocRow, setSelectedVocRow] = useState(null);
+  const [vocDetailFilter, setVocDetailFilter] = useState(null);
   const [vocDetailReviews, setVocDetailReviews] = useState([]);
   const [vocDetailLoading, setVocDetailLoading] = useState(false);
 
+  // 리뷰 팝업 모달
   const [showReviewModal, setShowReviewModal] = useState(false);
   const [modalTitle, setModalTitle] = useState('');
   const [modalReviews, setModalReviews] = useState([]);
   const [modalLoading, setModalLoading] = useState(false);
-  
+
+  // 워드클라우드 모달
   const [showWordCloudModal, setShowWordCloudModal] = useState(false);
   const [wordCloudData, setWordCloudData] = useState([]);
-  
+  const [wordCloudPid, setWordCloudPid] = useState(null);
+
+  // AI 재생성 모달
+  const [showRegenModal, setShowRegenModal] = useState(false);
+  const [regenPassword, setRegenPassword] = useState('');
+  const [regenError, setRegenError] = useState('');
+  const [regenTargetPid, setRegenTargetPid] = useState(null);
+
+  // Notion
+  const [notionSendingPids, setNotionSendingPids] = useState(new Set());
+  const [notionUrls, setNotionUrls] = useState({});
+
   const dropdownRef = useRef(null);
 
   useEffect(() => {
     const now = new Date();
-    const end = now.toISOString().split('T')[0];
-    const start = new Date(now.getTime() - 30 * 86400000).toISOString().split('T')[0];
-    setStartDate(start);
-    setEndDate(end);
+    const ed = now.toISOString().split('T')[0];
+    const sd = new Date(now.getTime() - 30 * 86400000).toISOString().split('T')[0];
+    setStartDate(sd);
+    setEndDate(ed);
     fetchProducts();
   }, []);
 
+  // 모달 열릴 때 body 스크롤 잠금
+  useEffect(() => {
+    const anyOpen = showReviewModal || showWordCloudModal || showRegenModal;
+    document.body.style.overflow = anyOpen ? 'hidden' : '';
+    return () => { document.body.style.overflow = ''; };
+  }, [showReviewModal, showWordCloudModal, showRegenModal]);
+
   useEffect(() => {
     const handler = (e) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(e.target)) {
-        setShowProductDropdown(false);
-      }
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target)) setShowProductDropdown(false);
     };
     document.addEventListener('mousedown', handler);
     return () => document.removeEventListener('mousedown', handler);
   }, []);
 
+  // 탭 전환 / 제품 / 날짜 변경 → 전체 데이터 재조회
   useEffect(() => {
     if (selectedProducts.length > 0 && startDate && endDate) {
       fetchTabData(activeTab);
     }
-  }, [selectedProducts, startDate, endDate, activeTab, sentimentFilter, selectedAttribute]);
+  }, [selectedProducts, startDate, endDate, activeTab]);
+
+  // 기간별 분석: 필터/차트클릭 변경 → 리뷰만 재조회
+  useEffect(() => {
+    if (activeTab === 'period' && selectedProducts.length > 0 && startDate && endDate) {
+      loadPeriodReviews();
+    }
+  }, [sentimentFilter, selectedAttribute, chartFilterDate, chartFilterPid]);
 
   const fetchProducts = async () => {
     try {
       const res = await fetch('/api/reviews/products');
       const { data } = await res.json();
       setProducts(data || []);
-      if (data && data.length > 0 && selectedProducts.length === 0) {
-        setSelectedProducts(data.map(p => p.id));
-      }
     } catch (err) { console.error('제품 로드 실패:', err); }
   };
 
-  const removeProduct = (id) => {
-    setSelectedProducts(prev => prev.filter(p => p !== id));
-  };
+  const removeProduct = (id) => setSelectedProducts(prev => prev.filter(p => p !== id));
 
-  const fetchTabData = async (tab) => {
-    if (selectedProducts.length === 0) return;
+  const fetchTabData = async (tab, opts = {}) => {
+    if (!selectedProducts.length) return;
     setLoading(true);
     const ids = selectedProducts.join(',');
-    const base = `/api/reviews`;
+    const base = '/api/reviews';
     try {
       switch (tab) {
         case 'dashboard': {
@@ -111,27 +146,29 @@ export default function ReviewAnalysisPage() {
         case 'period': {
           const params = new URLSearchParams({ productIds: ids, startDate, endDate, page: 1 });
           if (sentimentFilter) params.set('sentiment', sentimentFilter);
-          if (selectedAttribute) params.set('attribute', selectedAttribute);
-          const res = await fetch(`${base}/period?${params}`);
-          const data = await res.json();
-          setPeriodData(data || { periodData: [], reviews: [] });
+          if (selectedAttribute && selectedAttribute.length > 0) params.set('attribute', selectedAttribute.join(','));
+          const [periodRes, vocRes] = await Promise.all([
+            fetch(`${base}/period?${params}`),
+            fetch(`${base}/voc?productIds=${ids}&startDate=${startDate}&endDate=${endDate}`),
+          ]);
+          const periodJson = await periodRes.json();
+          const vocJson = await vocRes.json();
+          setPeriodData({ periodData: periodJson.periodData || [], reviews: [] });
+          setVocData(vocJson.data || []);
+          // 리뷰는 별도로 로드
+          await loadPeriodReviews(ids, startDate, endDate, sentimentFilter, selectedAttribute, chartFilterDate, chartFilterPid);
           break;
         }
         case 'sentiment': {
           const params = new URLSearchParams({ productIds: ids, startDate, endDate });
-          if (sentimentFilter) params.set('sentiment', sentimentFilter);
-          const [sentRes, periodRes, vocRes, dashRes] = await Promise.all([
-            fetch(`${base}/sentiment?${params}`),
+          const [periodRes, vocRes] = await Promise.all([
             fetch(`${base}/period?productIds=${ids}&startDate=${startDate}&endDate=${endDate}&page=1`),
-            fetch(`${base}/voc?productIds=${ids}&startDate=${startDate}&endDate=${endDate}`),
-            fetch(`${base}/dashboard?productIds=${ids}&startDate=${startDate}&endDate=${endDate}`)
+            fetch(`${base}/voc?${params}`),
           ]);
-          setSentimentData(await sentRes.json());
-          setPeriodData(await periodRes.json());
+          const periodJson = await periodRes.json();
+          setPeriodData(periodJson);
           const vocJson = await vocRes.json();
           setVocData(vocJson.data || []);
-          const dashJson = await dashRes.json();
-          setDashboardData(dashJson.data || []);
           break;
         }
         case 'voc': {
@@ -141,9 +178,28 @@ export default function ReviewAnalysisPage() {
           break;
         }
         case 'marketing': {
-          const res = await fetch(`${base}/marketing?productIds=${ids}&startDate=${startDate}&endDate=${endDate}`);
-          const { data } = await res.json();
-          setMarketingData(data || null);
+          // 대시보드 데이터가 없으면 같이 로드
+          if (!dashboardData.length) {
+            const dRes = await fetch(`${base}/dashboard?productIds=${ids}&startDate=${startDate}&endDate=${endDate}`);
+            const dJson = await dRes.json();
+            setDashboardData(dJson.data || []);
+          }
+          if (opts.force && opts.productId) {
+            // 제품별 재생성
+            const url = `${base}/marketing?productIds=${opts.productId}&startDate=${startDate}&endDate=${endDate}&force=true`;
+            const res = await fetch(url);
+            const json = await res.json();
+            const prod = json.data?.products?.[0];
+            if (prod) {
+              setMarketingOverrides(prev => ({ ...prev, [opts.productId]: { ...prod, updatedAt: json.updatedAt } }));
+            }
+          } else {
+            // 전체 로드
+            const url = `${base}/marketing?productIds=${ids}&startDate=${startDate}&endDate=${endDate}`;
+            const res = await fetch(url);
+            const json = await res.json();
+            setMarketingData(json.data ? { ...json.data, cached: json.cached, updatedAt: json.updatedAt } : null);
+          }
           break;
         }
       }
@@ -151,11 +207,34 @@ export default function ReviewAnalysisPage() {
     finally { setLoading(false); }
   };
 
-  const loadVocDetail = async (row) => {
+  const loadPeriodReviews = async (
+    ids = selectedProducts.join(','),
+    sd = startDate,
+    ed = endDate,
+    sentFilter = sentimentFilter,
+    attrFilter = selectedAttribute,
+    cfDate = chartFilterDate,
+    cfPid = chartFilterPid
+  ) => {
+    const pid = cfPid ? String(cfPid) : ids;
+    const rsd = cfDate || sd;
+    const red = cfDate || ed;
+    const params = new URLSearchParams({ productIds: pid, startDate: rsd, endDate: red });
+    if (sentFilter) params.set('sentiment', sentFilter);
+    if (attrFilter && attrFilter.length > 0) params.set('attribute', Array.isArray(attrFilter) ? attrFilter.join(',') : attrFilter);
+    try {
+      const res = await fetch(`/api/reviews/period?${params}`);
+      const data = await res.json();
+      setPeriodData(prev => ({ ...prev, reviews: data.reviews || [] }));
+    } catch (err) { console.error('리뷰 로드 실패:', err); }
+  };
+
+  const loadVocDetail = async (row, sentiment) => {
     setVocDetailLoading(true);
     setVocDetailReviews([]);
     try {
       const params = new URLSearchParams({ productIds: row.productId, startDate, endDate, attribute: row.attributeName });
+      if (sentiment) params.set('sentiment', sentiment);
       const res = await fetch(`/api/reviews/period?${params}`);
       const data = await res.json();
       setVocDetailReviews(data.reviews || []);
@@ -169,7 +248,7 @@ export default function ReviewAnalysisPage() {
     setModalLoading(true);
     setModalReviews([]);
     try {
-      const params = new URLSearchParams({ productIds: Array.isArray(pids) ? pids.join(',') : pids, startDate, endDate });
+      const params = new URLSearchParams({ productIds: Array.isArray(pids) ? pids.join(',') : String(pids), startDate, endDate });
       if (attr) params.set('attribute', attr);
       if (sent) params.set('sentiment', sent);
       const res = await fetch(`/api/reviews/period?${params}`);
@@ -179,16 +258,59 @@ export default function ReviewAnalysisPage() {
     finally { setModalLoading(false); }
   };
 
+  const handleRegenSubmit = () => {
+    if (regenPassword !== 'youngje') {
+      setRegenError('비밀번호가 올바르지 않습니다.');
+      return;
+    }
+    setShowRegenModal(false);
+    setRegenPassword('');
+    setRegenError('');
+    if (regenTargetPid) {
+      fetchTabData('marketing', { force: true, productId: regenTargetPid });
+    }
+  };
+
+  const sendToNotion = async (product) => {
+    const pid = product.productId;
+    setNotionSendingPids(prev => new Set([...prev, pid]));
+    try {
+      const res = await fetch('/api/notion/marketing', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ product, startDate, endDate }),
+      });
+      const result = await res.json();
+      if (result.success) {
+        setNotionUrls(prev => ({ ...prev, [pid]: result.url }));
+        alert('🚀 마케팅부문 노션 페이지로 성공적으로 전송되었습니다!');
+      } else {
+        alert('❌ 노션 전송 오류: ' + result.error);
+      }
+    } catch (err) {
+      alert('❌ 노션 전송 중 네트워크 오류가 발생했습니다.');
+    } finally {
+      setNotionSendingPids(prev => { const s = new Set(prev); s.delete(pid); return s; });
+    }
+  };
+
+  // 마케팅 데이터에서 productId 기반 override 적용
+  const getMktProduct = (p, idx) => {
+    const pid = p.productId;
+    if (pid && marketingOverrides[pid]) return { ...p, ...marketingOverrides[pid] };
+    return p;
+  };
+
+  // ── 리뷰 카드 (공통) ──────────────────────────────
   const renderHighlightedText = (text, highlights) => {
     if (!text) return null;
-    if (!highlights || highlights.length === 0) return <span>{text}</span>;
-    const parts = [];
-    let lastIndex = 0;
+    if (!highlights || !highlights.length) return <span>{text}</span>;
     const sorted = highlights
       .map(h => ({ ...h, startIdx: text.indexOf(h.text) }))
       .filter(h => h.startIdx >= 0)
       .sort((a, b) => a.startIdx - b.startIdx);
-    
+    const parts = [];
+    let lastIndex = 0;
     for (const h of sorted) {
       if (h.startIdx > lastIndex) parts.push({ text: text.slice(lastIndex, h.startIdx), highlight: false });
       if (h.startIdx >= lastIndex) {
@@ -197,62 +319,121 @@ export default function ReviewAnalysisPage() {
       }
     }
     if (lastIndex < text.length) parts.push({ text: text.slice(lastIndex), highlight: false });
-    
-    return parts.map((p, i) => p.highlight ? <mark key={i} className={`ra-highlight ${p.sentiment}`}>{p.text}</mark> : <span key={i}>{p.text}</span>);
+    return parts.map((p, i) => p.highlight
+      ? <mark key={i} className={`ra-highlight ${p.sentiment}`} title={`${p.attribute} — ${p.sentiment}`}>{p.text}</mark>
+      : <span key={i}>{p.text}</span>);
   };
 
   const renderReviewCard = (r, i) => {
-    // Collect all attributes for the bottom tags
-    const attrs = Array.isArray(r.sourceHighlight) ? r.sourceHighlight : [];
-    const uniqueAttrs = [...new Map(attrs.map(item => [`${item.attribute}-${item.sentiment}`, item])).values()];
-
+    const optionText = r.extraInfo?.option || (typeof r.extraInfo === 'string' ? r.extraInfo : null);
+    const mediaUrls = Array.isArray(r.mediaUrls) ? r.mediaUrls.filter(Boolean) : [];
     return (
       <div key={i} className="ra-review-item glass-panel">
-        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.75rem', alignItems: 'center' }}>
-           <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
-              <span className="ra-review-date" style={{ fontSize: '0.85rem', opacity: 0.6 }}>{r.reviewDate}</span>
-              <span className={`ra-sentiment-badge ${r.sentiment}`}>{r.sentiment === 'positive' ? '긍정' : r.sentiment === 'negative' ? '부정' : '중립'}</span>
-              {(r.rating || r.score) && <span style={{ display: 'flex', alignItems: 'center', gap: '0.2rem', color: '#fbbf24', fontSize: '0.9rem', fontWeight: 600 }}><Star size={14} fill="#fbbf24"/> {r.rating || r.score || '5.0'}</span>}
-           </div>
-           {r.sourcePlatform && <span className="ra-review-platform" style={{ fontSize: '0.75rem', padding: '0.2rem 0.5rem', background: 'rgba(255,255,255,0.1)', borderRadius: '4px' }}>{r.sourcePlatform}</span>}
+        {/* 속성 태그 — 상단 */}
+        {(r.attributes || []).length > 0 && (
+          <div className="ra-review-attrs" style={{ marginBottom: '0.6rem' }}>
+            {r.attributes.map((attr, ai) => (
+              <span key={ai} className={`ra-review-attr-tag ${attr.sentiment}`}>
+                {attr.name} — {attr.sentiment === 'positive' ? '긍정' : attr.sentiment === 'negative' ? '부정' : '중립'}
+              </span>
+            ))}
+          </div>
+        )}
+        <div className="ra-review-meta">
+          <span className="ra-review-date">{r.reviewDate}</span>
+          <span className={`ra-sentiment-badge ${r.sentiment}`}>
+            {r.sentiment === 'positive' ? '긍정' : r.sentiment === 'negative' ? '부정' : '중립'}
+          </span>
+          {r.rating && (
+            <span className="ra-review-rating"><Star size={13} fill="#fbbf24" /> {r.rating}</span>
+          )}
+          {r.platform && <span className="ra-review-platform">{r.platform}</span>}
+          {r.brandName && <span className="ra-review-brand-tag">{r.brandName}</span>}
+          {r.productName && <span className="ra-review-pname-tag">{r.productName}</span>}
         </div>
+        {r.reviewerNickname && (
+          <div className="ra-review-author">작성자: {r.reviewerNickname}</div>
+        )}
+        {optionText && (
+          <div className="ra-review-option">option: {optionText}</div>
+        )}
         <p className="ra-review-text">{renderHighlightedText(r.reviewText, r.sourceHighlight)}</p>
-        
-        {uniqueAttrs.length > 0 && (
-           <div className="ra-review-meta-bottom" style={{ display: 'flex', gap: '0.5rem', marginTop: '1rem', flexWrap: 'wrap' }}>
-              {uniqueAttrs.map((attr, idx) => (
-                 <span key={idx} className={`ra-review-attr-tag ${attr.sentiment}`} style={{ display: 'inline-flex', padding: '0.2rem 0.5rem', fontSize: '0.75rem', borderRadius: '4px', border: '1px solid currentColor', opacity: 0.8 }}>
-                    {attr.attribute} — {attr.sentiment === 'positive' ? '긍정' : attr.sentiment === 'negative' ? '부정' : '중립'}
-                 </span>
-              ))}
-           </div>
+        {mediaUrls.length > 0 && (
+          <div className="ra-review-media">
+            {mediaUrls.slice(0, 4).map((url, mi) => (
+              <img key={mi} src={url} alt="" onError={e => { e.target.style.display = 'none'; }} />
+            ))}
+          </div>
         )}
       </div>
     );
   };
 
+  // ── 대시보드 ──────────────────────────────────────
   const renderDashboard = () => {
-    if (dashboardData.length === 0) return <div className="ra-empty-state">데이터가 없습니다.</div>;
+    if (!dashboardData.length) return <div className="ra-empty-state">제품을 선택하면 데이터가 표시됩니다.</div>;
     return (
       <div className="ra-dashboard-grid">
-        {dashboardData.map((item) => {
+        {dashboardData.map(item => {
           const total = parseInt(item.totalReviews) || 0;
-          const posRate = total > 0 ? Math.round((parseInt(item.positiveCount) / total) * 100) : 0;
-          const negRate = total > 0 ? Math.round((parseInt(item.negativeCount) / total) * 100) : 0;
+          const pos = parseInt(item.positiveCount) || 0;
+          const neg = parseInt(item.negativeCount) || 0;
+          const posRate = total > 0 ? Math.round(pos / total * 100) : 0;
+          const negRate = total > 0 ? Math.round(neg / total * 100) : 0;
+          const todayCount = parseInt(item.todayCount) || 0;
+          const allTimeCount = parseInt(item.allTimeCount) || 0;
+          const topPos = item.topAttributes?.positive || [];
+          const topNeg = item.topAttributes?.negative || [];
+          const p = products.find(prod => String(prod.id) === String(item.productId));
           return (
-            <div key={item.productId} className="ra-dashboard-row glass-panel" style={{ display: 'flex', flexDirection: 'column' }}>
-               <div className="ra-dash-card-header">
-                 <img src={item.thumbnailUrl} className="ra-dash-thumb" alt="" />
-                 <div><span className="ra-dash-brand">{item.brandName}</span><h4>{item.productName}</h4></div>
-               </div>
-               <div className="ra-dash-stat">
-                 <span className="ra-dash-number">{total.toLocaleString()}</span><span className="ra-dash-label">전체 리뷰수</span>
-                 <span className={`ra-dash-growth ${item.growthRate >= 0 ? 'positive' : 'negative'}`}>{item.growthRate >= 0 ? '↑' : '↓'} {Math.abs(item.growthRate)}%</span>
-               </div>
-               <div className="ra-sentiment-bars" style={{ marginTop: '1.5rem' }}>
-                  <div className="ra-sentiment-bar"><span className="ra-sentiment-label positive">긍정</span><div className="ra-bar-track"><div className="ra-bar-fill positive" style={{ width: `${posRate}%` }}></div></div><span className="ra-sentiment-pct positive">{posRate}%</span></div>
-                  <div className="ra-sentiment-bar"><span className="ra-sentiment-label negative">부정</span><div className="ra-bar-track"><div className="ra-bar-fill negative" style={{ width: `${negRate}%` }}></div></div><span className="ra-sentiment-pct negative">{negRate}%</span></div>
-               </div>
+            <div key={item.productId} className="ra-dashboard-row">
+              <div className="ra-dash-card glass-panel">
+                <div className="ra-dash-card-header">
+                  {item.thumbnailUrl && <img src={item.thumbnailUrl} alt="" className="ra-dash-thumb" />}
+                  <div>
+                    <span className="ra-dash-brand">{item.brandName}</span>
+                    <h4>{item.productName}</h4>
+                    {p?.page_url && <a href={p.page_url} target="_blank" rel="noreferrer" className="ra-external-link">상품 상세 보기 ↗</a>}
+                  </div>
+                </div>
+                <div className="ra-dash-stat">
+                  <span className="ra-dash-number">{total.toLocaleString()}</span>
+                  <span className="ra-dash-label">신규 리뷰수</span>
+                </div>
+                <div style={{ display: 'flex', gap: '1rem', marginTop: '0.75rem', fontSize: '0.82rem' }}>
+                  <span style={{ color: '#9dce63' }}>금일 <strong>{todayCount}</strong>건</span>
+                  <span style={{ color: '#94a3b8' }}>누적 <strong>{allTimeCount.toLocaleString()}</strong>건</span>
+                </div>
+              </div>
+              <div className="ra-dash-card glass-panel">
+                <h4>{item.brandName} {item.productName}</h4>
+                <div className="ra-sentiment-bars">
+                  <div className="ra-sentiment-bar">
+                    <span className="ra-sentiment-label positive">긍정</span>
+                    <div className="ra-bar-track"><div className="ra-bar-fill positive" style={{ width: `${posRate}%` }} /></div>
+                    <span className="ra-sentiment-pct positive">{posRate}%</span>
+                  </div>
+                  <div className="ra-sentiment-bar">
+                    <span className="ra-sentiment-label negative">부정</span>
+                    <div className="ra-bar-track"><div className="ra-bar-fill negative" style={{ width: `${negRate}%` }} /></div>
+                    <span className="ra-sentiment-pct negative">{negRate}%</span>
+                  </div>
+                </div>
+                {item.avgRating && <div className="ra-avg-rating">평균 ★ {item.avgRating}</div>}
+              </div>
+              <div className="ra-dash-card glass-panel">
+                <h4>{item.brandName} {item.productName}</h4>
+                <div className="ra-top-attrs">
+                  <div className="ra-attr-section">
+                    <span className="ra-attr-title positive">TOP3 긍정 속성</span>
+                    <span className="ra-attr-values positive">{topPos.length ? topPos.slice(0, 3).map(a => a.name).join(', ') : '-'}</span>
+                  </div>
+                  <div className="ra-attr-section">
+                    <span className="ra-attr-title negative">TOP3 부정 속성</span>
+                    <span className="ra-attr-values negative">{topNeg.length ? topNeg.slice(0, 3).map(a => a.name).join(', ') : '-'}</span>
+                  </div>
+                </div>
+              </div>
             </div>
           );
         })}
@@ -260,7 +441,146 @@ export default function ReviewAnalysisPage() {
     );
   };
 
+  // ── 기간별 분석 ───────────────────────────────────
+  const renderPeriod = () => {
+    const { periodData: pData, reviews } = periodData;
+    const dateMap = {};
+    const productNames = {};
+    (pData || []).forEach(d => {
+      if (!dateMap[d.reviewDate]) dateMap[d.reviewDate] = {};
+      dateMap[d.reviewDate][d.productId] = parseInt(d.count);
+      productNames[d.productId] = d.productName;
+    });
+    const dates = Object.keys(dateMap).sort();
+    const productIdList = Object.keys(productNames);
+
+    const lineChartData = {
+      labels: dates.map(d => d.slice(5)),
+      datasets: productIdList.map((pid, idx) => ({
+        label: productNames[pid],
+        data: dates.map(d => dateMap[d]?.[pid] || 0),
+        borderColor: CHART_COLORS[idx % CHART_COLORS.length],
+        backgroundColor: CHART_COLORS[idx % CHART_COLORS.length] + '22',
+        tension: 0.3, fill: false, pointRadius: 4, pointHoverRadius: 7,
+      })),
+    };
+
+    const lineOpts = {
+      ...DARK_CHART_DEFAULTS,
+      plugins: {
+        ...DARK_CHART_DEFAULTS.plugins,
+        legend: { labels: { color: '#e2e8f0', font: { size: 10 } } },
+        title: { display: true, text: '일자별 리뷰 생성 수', color: '#f8fafc', font: { size: 14, weight: 'bold' } },
+      },
+      onClick: (_event, elements) => {
+        if (!elements.length) {
+          setChartFilterDate(null);
+          setChartFilterPid(null);
+          return;
+        }
+        const el = elements[0];
+        const clickedDate = dates[el.index];
+        const clickedPid = parseInt(productIdList[el.datasetIndex]);
+        setChartFilterDate(clickedDate);
+        setChartFilterPid(clickedPid);
+      },
+    };
+
+    // 속성 칩: vocData를 전체 집계
+    const attrAgg = {};
+    (vocData || []).forEach(row => {
+      const name = row.attributeName;
+      if (!attrAgg[name]) attrAgg[name] = { totalCount: 0, positiveCount: 0, negativeCount: 0 };
+      attrAgg[name].totalCount += parseInt(row.totalCount) || 0;
+      attrAgg[name].positiveCount += parseInt(row.positiveCount) || 0;
+      attrAgg[name].negativeCount += parseInt(row.negativeCount) || 0;
+    });
+    const attrChips = Object.entries(attrAgg)
+      .map(([name, c]) => {
+        const count = sentimentFilter === 'positive' ? c.positiveCount
+          : sentimentFilter === 'negative' ? c.negativeCount
+          : sentimentFilter === 'neutral' ? (c.totalCount - c.positiveCount - c.negativeCount)
+          : c.totalCount;
+        return { name, count };
+      })
+      .filter(a => a.count > 0 || (selectedAttribute || []).includes(a.name))
+      .sort((a, b) => b.count - a.count);
+
+    const clearChartFilter = () => { setChartFilterDate(null); setChartFilterPid(null); };
+
+    return (
+      <div className="ra-period-container">
+        <div className="ra-period-left">
+          <div className="ra-chart-panel glass-panel">
+            <div style={{ height: 320 }}>
+              {dates.length > 0
+                ? <Line data={lineChartData} options={lineOpts} />
+                : <div className="ra-empty-state">차트 데이터가 없습니다.</div>
+              }
+            </div>
+            {attrChips.length > 0 && (
+              <div className="ra-attr-chips">
+                {attrChips.map(({ name, count }) => (
+                  <button
+                    key={name}
+                    className={`ra-attr-chip ${(selectedAttribute || []).includes(name) ? 'active' : ''}`}
+                    onClick={() => setSelectedAttribute(prev => {
+                      const arr = prev || [];
+                      return arr.includes(name) ? arr.filter(n => n !== name) : [...arr, name];
+                    })}
+                  >
+                    {name} ({count})
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+        <div className="ra-period-right">
+          <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flexWrap: 'wrap' }}>
+            <div className="ra-filter-bar">
+              {['전체', '긍정', '중립', '부정'].map(label => {
+                const val = label === '전체' ? null : label === '긍정' ? 'positive' : label === '부정' ? 'negative' : 'neutral';
+                return (
+                  <button
+                    key={label}
+                    className={`ra-filter-chip ${sentimentFilter === val ? 'active' : ''}`}
+                    onClick={() => setSentimentFilter(val)}
+                  >
+                    {label}
+                  </button>
+                );
+              })}
+            </div>
+            {(chartFilterDate || chartFilterPid) && (
+              <button className="ra-chart-filter-badge" onClick={clearChartFilter}>
+                {chartFilterDate && `${chartFilterDate.slice(5)}`}
+                {chartFilterPid && ` · ${productNames[chartFilterPid] || ''}`}
+                <X size={12} />
+              </button>
+            )}
+          </div>
+          <div className="ra-review-list" style={{ flex: 1 }}>
+            {(reviews || []).map((r, i) => renderReviewCard(r, i))}
+            {(!reviews || !reviews.length) && (
+              <div className="ra-empty-state">
+                {chartFilterDate ? '해당 날짜의 리뷰가 없습니다.' : '리뷰 데이터가 없습니다.'}
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  // ── 긍/부정 분석 ──────────────────────────────────
   const renderSentiment = () => {
+    const { periodData: pData } = periodData;
+    const dates = [...new Set((pData || []).map(d => d.reviewDate))].sort();
+    const productNames = {};
+    (pData || []).forEach(d => { productNames[d.productId] = d.productName; });
+
+    // 제품별 속성 맵 (vocData)
     const productAttrMap = {};
     (vocData || []).forEach(row => {
       const key = String(row.productId);
@@ -268,252 +588,529 @@ export default function ReviewAnalysisPage() {
       productAttrMap[key].attrs.push(row);
     });
 
-    const barOptions = {
-      responsive: true, maintainAspectRatio: false, indexAxis: 'y',
-      scales: { x: { stacked: true, max: 100 }, y: { stacked: true } },
-      onClick: (e, el, chart) => {
+    const makeProductLineData = (pid) => ({
+      labels: dates.map(d => d.slice(5)),
+      datasets: [
+        {
+          label: '전체',
+          data: dates.map(d => {
+            const item = (pData || []).find(p => p.reviewDate === d && String(p.productId) === String(pid));
+            return item ? parseInt(item.count) : 0;
+          }),
+          borderColor: '#9dce63', tension: 0.3, fill: false, pointRadius: 3,
+        },
+        {
+          label: '긍정',
+          data: dates.map(d => {
+            const item = (pData || []).find(p => p.reviewDate === d && String(p.productId) === String(pid));
+            return item ? parseInt(item.positiveCount) : 0;
+          }),
+          borderColor: '#60a5fa', tension: 0.3, fill: false, pointRadius: 3,
+        },
+        {
+          label: '부정',
+          data: dates.map(d => {
+            const item = (pData || []).find(p => p.reviewDate === d && String(p.productId) === String(pid));
+            return item ? parseInt(item.negativeCount) : 0;
+          }),
+          borderColor: '#f87171', tension: 0.3, fill: false, pointRadius: 3,
+        },
+      ],
+    });
+
+    const makeBarOpts = (pid) => ({
+      ...DARK_CHART_DEFAULTS,
+      indexAxis: 'y',
+      scales: {
+        x: { stacked: true, max: 100, ticks: { color: '#94a3b8', callback: v => v + '%' }, grid: { color: 'rgba(255,255,255,0.04)' } },
+        y: { stacked: true, ticks: { color: '#e2e8f0', font: { size: 10 } }, grid: { display: false } },
+      },
+      onClick: (_e, el, chart) => {
         if (!el.length) return;
-        const { index, datasetIndex } = el[0];
-        const attrName = chart.data.labels[index];
-        const sent = datasetIndex === 0 ? 'positive' : 'negative';
-        openReviewModal(`${attrName} — ${sent==='positive'?'긍정':'부정'}`, chart.canvas.dataset.pids, attrName, sent);
-      }
+        const attrName = chart.data.labels[el[0].index];
+        const sent = el[0].datasetIndex === 0 ? 'positive' : 'negative';
+        openReviewModal(`${attrName} — ${sent === 'positive' ? '긍정' : '부정'}`, [parseInt(pid)], attrName, sent);
+      },
+    });
+
+    const lineOpts = {
+      ...DARK_CHART_DEFAULTS,
+      plugins: { legend: { labels: { color: '#e2e8f0', font: { size: 9 } } } },
     };
+
+    const productIds = [...new Set([
+      ...Object.keys(productNames),
+      ...Object.keys(productAttrMap),
+    ])];
+
+    if (!productIds.length) return <div className="ra-empty-state">제품을 선택하면 데이터가 표시됩니다.</div>;
 
     return (
       <div className="ra-sentiment-container">
-        
-        {/* 1행 3열 요약 대시보드 렌더링 */}
-        {dashboardData.length > 0 && (
-          <div style={{ marginBottom: '3rem' }}>
-            <h3 style={{ marginBottom: '1.5rem', fontWeight: 800 }}>전체 제품 요약 지표</h3>
-            <div className="ra-dashboard-row" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '1.5rem' }}>
-              {dashboardData.slice(0, 1).map((item) => {
-                 const total = parseInt(item.totalReviews) || 0;
-                 const posRate = total > 0 ? Math.round((parseInt(item.positiveCount) / total) * 100) : 0;
-                 const negRate = total > 0 ? Math.round((parseInt(item.negativeCount) / total) * 100) : 0;
-                 const topPos = item.topAttributes?.positive || [];
-                 const topNeg = item.topAttributes?.negative || [];
-                 return (
-                   <div key={item.productId} style={{ display: 'contents' }}>
-                     <div className="ra-dash-card glass-panel" style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                        <span className="ra-dash-label" style={{ fontWeight: 700 }}>기간 내 전체 리뷰</span>
-                        <div><span className="ra-dash-number" style={{ fontSize: '3rem' }}>{total}</span><span style={{ marginLeft: '10px', fontSize: '1rem', color: '#94a3b8' }}>건</span></div>
-                        <div style={{ marginTop: 'auto' }}><span className={`ra-dash-growth ${item.growthRate >= 0 ? 'positive' : 'negative'}`}>{item.growthRate >= 0 ? '전주 대비 증가 ↑' : '전주 대비 감소 ↓'} {Math.abs(item.growthRate)}%</span></div>
-                     </div>
-                     <div className="ra-dash-card glass-panel" style={{ display: 'flex', flexDirection: 'column' }}>
-                        <span className="ra-dash-label" style={{ fontWeight: 700, marginBottom: '1.5rem' }}>전체 긍/부정 비율</span>
-                        <div className="ra-sentiment-bars">
-                           <div className="ra-sentiment-bar"><span className="ra-sentiment-label positive">긍정</span><div className="ra-bar-track"><div className="ra-bar-fill positive" style={{ width: `${posRate}%` }}></div></div><span className="ra-sentiment-pct positive">{posRate}%</span></div>
-                           <div className="ra-sentiment-bar"><span className="ra-sentiment-label negative">부정</span><div className="ra-bar-track"><div className="ra-bar-fill negative" style={{ width: `${negRate}%` }}></div></div><span className="ra-sentiment-pct negative">{negRate}%</span></div>
-                        </div>
-                     </div>
-                     <div className="ra-dash-card glass-panel">
-                        <span className="ra-dash-label" style={{ fontWeight: 700, marginBottom: '1.5rem', display: 'block' }}>최상위 반응 속성 분석 결과</span>
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                           <div><span style={{ fontSize: '0.85rem', color: '#60a5fa', fontWeight: 800 }}>최다 호평 속성 (TOP 3)</span><p style={{ color: '#fff', fontWeight: 600, marginTop: '0.3rem' }}>{topPos.slice(0, 3).map(a => a.name).join(', ') || '데이터 없음'}</p></div>
-                           <div><span style={{ fontSize: '0.85rem', color: '#f87171', fontWeight: 800 }}>최다 악평 속성 (TOP 3)</span><p style={{ color: '#fff', fontWeight: 600, marginTop: '0.3rem' }}>{topNeg.slice(0, 3).map(a => a.name).join(', ') || '데이터 없음'}</p></div>
-                        </div>
-                     </div>
-                   </div>
-                 );
-              })}
-            </div>
-          </div>
-        )}
-
-        <div className="ra-sentiment-header">
-          <h3>제품별 상세 속성 분석 <span className="ra-sentiment-guide"><Info size={14}/> 차트 막대를 클릭하여 실제 리뷰를 확인하세요</span></h3>
-          <div className="ra-filter-bar">
-            {['전체','긍정','중립','부정'].map(lbl => (
-              <button key={lbl} className={`ra-filter-chip ${sentimentFilter===(lbl==='전체'?null:lbl==='긍정'?'positive':lbl==='부정'?'negative':'neutral')?'active':''}`} onClick={()=>setSentimentFilter(lbl==='전체'?null:lbl==='긍정'?'positive':lbl==='부정'?'negative':'neutral')}>{lbl}</button>
-            ))}
-          </div>
-        </div>
-        <div className="ra-sentiment-ratio-list">
-          {Object.entries(productAttrMap).map(([pid, {productName, brandName, attrs}]) => {
-            const top = attrs.slice(0, 10);
-            const barData = {
-              labels: top.map(a => a.attributeName),
-              datasets: [
-                { label: '긍정', data: top.map(a => a.positiveRate), backgroundColor: '#4A90D9' },
-                { label: '부정', data: top.map(a => a.negativeRate), backgroundColor: '#E8734A' }
-              ]
-            };
-            return (
-              <div key={pid} className="ra-sentiment-ratio glass-panel">
-                <div className="ra-sentiment-ratio-header">
-                   <p><strong>{brandName}</strong> {productName}</p>
-                   <button className="ra-wordcloud-btn" onClick={() => { setWordCloudData(attrs.map(a=>({text:a.attributeName, value:a.totalCount}))); setShowWordCloudModal(true); }}><BarChart3 size={14}/> 버즈량 워드클라우드</button>
+        {productIds.map(pid => {
+          const info = productAttrMap[pid] || { productName: productNames[pid] || '', brandName: '', attrs: [] };
+          const top = info.attrs.slice(0, 10);
+          const barData = {
+            labels: top.map(a => a.attributeName),
+            datasets: [
+              { label: '긍정', data: top.map(a => a.positiveRate || 0), backgroundColor: '#4A90D9' },
+              { label: '부정', data: top.map(a => a.negativeRate || 0), backgroundColor: '#E8734A' },
+            ],
+          };
+          return (
+            <div key={pid}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
+                <p style={{ margin: 0, fontWeight: 800, color: '#fff' }}>
+                  <span className="ra-dash-brand" style={{ marginRight: '0.5rem' }}>{info.brandName}</span>
+                  {info.productName}
+                </p>
+                <button
+                  className="ra-wordcloud-btn"
+                  onClick={() => {
+                    const words = info.attrs
+                      .map(a => ({ text: a.attributeName, value: parseInt(a.totalCount) || 1 }))
+                      .filter(w => w.value > 0);
+                    setWordCloudData(words);
+                    setWordCloudPid(parseInt(pid));
+                    setShowWordCloudModal(true);
+                  }}
+                >
+                  <BarChart3 size={14} /> 버즈량
+                </button>
+              </div>
+              <div className="ra-sentiment-product-pair">
+                <div className="ra-chart-small glass-panel">
+                  <div style={{ height: Math.max(200, top.length > 0 ? 220 : 200) }}>
+                    {dates.length > 0
+                      ? <Line data={makeProductLineData(pid)} options={lineOpts} />
+                      : <div className="ra-empty-state">데이터 없음</div>
+                    }
+                  </div>
                 </div>
-                <div style={{ height: Math.max(250, top.length * 40) }}>
-                   <Bar data={barData} options={barOptions} data-pids={pid} />
+                <div className="ra-chart-small glass-panel">
+                  <div style={{ height: Math.max(200, top.length * 36 + 20) }}>
+                    {top.length > 0
+                      ? <Bar data={barData} options={makeBarOpts(pid)} />
+                      : <div className="ra-empty-state">속성 데이터 없음</div>
+                    }
+                  </div>
                 </div>
               </div>
-            );
-          })}
+            </div>
+          );
+        })}
+      </div>
+    );
+  };
+
+  // ── VoC 분석 ──────────────────────────────────────
+  const renderVoc = () => {
+    // 제품별 그룹화
+    const productGroups = {};
+    (vocData || []).forEach(row => {
+      const key = String(row.productId);
+      if (!productGroups[key]) productGroups[key] = { brandName: row.brandName, productName: row.productName, rows: [] };
+      productGroups[key].rows.push(row);
+    });
+
+    if (!Object.keys(productGroups).length) return <div className="ra-empty-state">VoC 데이터가 없습니다.</div>;
+
+    return (
+      <div className="ra-voc-layout">
+        <div className="ra-voc-table-panel glass-panel">
+          <table className="ra-voc-table">
+            <thead>
+              <tr>
+                <th>속성</th>
+                <th>VoC 수</th>
+                <th>긍/부정 비율</th>
+              </tr>
+            </thead>
+            <tbody>
+              {Object.entries(productGroups).map(([pid, { brandName, productName, rows }]) => (
+                <React.Fragment key={pid}>
+                  <tr className="ra-voc-group-header">
+                    <td colSpan={3}>
+                      <span style={{ marginRight: '0.5rem', opacity: 0.7 }}>{brandName}</span>
+                      {productName}
+                    </td>
+                  </tr>
+                  {rows.map((row) => {
+                    const isSelected = selectedVocRow?.productId === row.productId && selectedVocRow?.attributeName === row.attributeName;
+                    return (
+                      <tr
+                        key={`${pid}-${row.attributeName}`}
+                        className={`ra-voc-row${isSelected ? ' active' : ''}`}
+                        onClick={() => { setSelectedVocRow(row); setVocDetailFilter(null); loadVocDetail(row, null); }}
+                      >
+                        <td className="ra-voc-cell-attr">{row.attributeName}</td>
+                        <td className="ra-voc-cell-count">{row.totalCount}개</td>
+                        <td>
+                          <div className="ra-voc-ratio-bar">
+                            <div className="ra-voc-ratio-pos" style={{ width: `${row.positiveRate}%` }} />
+                            <div className="ra-voc-ratio-neu" style={{ width: `${row.neutralRate || 0}%` }} />
+                            <div className="ra-voc-ratio-neg" style={{ width: `${row.negativeRate}%` }} />
+                          </div>
+                          <div className="ra-voc-ratio-labels">
+                            <span className="pos">{row.positiveRate}%</span>
+                            <span className="neg">{row.negativeRate}%</span>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </React.Fragment>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        <div className="ra-voc-detail-panel glass-panel">
+          {!selectedVocRow ? (
+            <div className="ra-empty-state">왼쪽에서 속성을 선택하세요.</div>
+          ) : (
+            <>
+              <div className="ra-voc-detail-header">
+                <h4>{selectedVocRow.productName} — {selectedVocRow.attributeName}</h4>
+                <div className="ra-voc-detail-keywords">
+                  {[
+                    ...(selectedVocRow.positive?.keywords || []).slice(0, 3).map(k => ({ ...k, type: 'positive' })),
+                    ...(selectedVocRow.neutral?.keywords || []).slice(0, 2).map(k => ({ ...k, type: 'neutral' })),
+                    ...(selectedVocRow.negative?.keywords || []).slice(0, 3).map(k => ({ ...k, type: 'negative' })),
+                  ].map((kw, ki) => (
+                    <span
+                      key={ki}
+                      className={`ra-voc-keyword ${kw.type}`}
+                      onClick={() => {
+                        const sent = kw.type === 'neutral' ? 'neutral' : kw.type;
+                        setVocDetailFilter(sent);
+                        loadVocDetail(selectedVocRow, sent);
+                      }}
+                    >
+                      {kw.keyword}
+                    </span>
+                  ))}
+                </div>
+              </div>
+              <div className="ra-filter-bar">
+                {[{ label: '전체', val: null }, { label: '긍정', val: 'positive' }, { label: '중립', val: 'neutral' }, { label: '부정', val: 'negative' }].map(({ label, val }) => (
+                  <button
+                    key={label}
+                    className={`ra-filter-chip ${vocDetailFilter === val ? 'active' : ''}`}
+                    onClick={() => { setVocDetailFilter(val); loadVocDetail(selectedVocRow, val); }}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+              <div className="ra-voc-review-list">
+                {vocDetailLoading && <div className="ra-empty-state">불러오는 중...</div>}
+                {!vocDetailLoading && !vocDetailReviews.length && <div className="ra-empty-state">리뷰가 없습니다.</div>}
+                {!vocDetailLoading && vocDetailReviews.map((r, i) => renderReviewCard(r, i))}
+              </div>
+            </>
+          )}
         </div>
       </div>
     );
   };
 
-  const renderVoc = () => {
-    const activeP = products.find(p => selectedProducts.includes(p.id)) || products[0];
-    const filtered = activeP ? vocData.filter(d => d.productId === activeP.id) : [];
-    return (
-      <div className="ra-voc-container">
-        {!activeP ? <div className="ra-empty-state">제품을 선택하세요.</div> : (
-          <div className="ra-voc-layout">
-            <div className="ra-voc-top-info glass-panel">
-              <h3>{activeP.productName} 심층 VoC</h3>
-              <p className="ra-voc-subtitle" style={{ fontSize: '0.9rem', color: '#94a3b8' }}>핵심 키워드를 클릭하여 소비자의 솔직한 목소리를 들어보세요.</p>
-            </div>
-            <div className="ra-voc-main-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: '2rem', marginTop: '1.5rem' }}>
-               <div className="ra-voc-left-col glass-panel" style={{ padding: '1.5rem' }}>
-                 <h4 style={{ marginBottom: '1.5rem', fontWeight: 800 }}>속성별 버즈량 (클릭 가능)</h4>
-                 <div className="ra-voc-wordcloud-content" style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
-                    {filtered.sort((a,b)=>b.totalCount-a.totalCount).map((row, idx) => {
-                      const isActive = selectedVocRow?.attributeName === row.attributeName;
-                      return (
-                        <div 
-                          key={idx} 
-                          className={`ra-voc-chip ${isActive ? 'active' : ''}`}
-                          onClick={() => { setSelectedVocRow(row); loadVocDetail(row); }}
-                          style={{
-                            padding: '0.5rem 1rem',
-                            borderRadius: '50px',
-                            background: isActive ? '#9dce63' : 'rgba(255,255,255,0.05)',
-                            color: isActive ? '#000' : '#fff',
-                            border: `1px solid ${isActive ? '#9dce63' : 'rgba(255,255,255,0.1)'}`,
-                            cursor: 'pointer',
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '0.5rem',
-                            fontWeight: isActive ? 800 : 500,
-                            transition: 'all 0.2s',
-                          }}
-                        >
-                          {row.attributeName} <span style={{ opacity: isActive ? 1 : 0.6 }}>{row.totalCount}</span>
-                        </div>
-                      )
-                    })}
-                 </div>
-               </div>
-               <div className="ra-voc-right-col">
-                  {selectedVocRow ? (
-                    <div className="ra-voc-detail-panel glass-panel" style={{ padding: '1.5rem' }}>
-                       <h4 style={{ marginBottom: '1.5rem', display: 'flex', alignItems: 'center', gap: '0.6rem', fontWeight: 800 }}><MessageSquare size={18}/> {selectedVocRow.attributeName} 관련 리뷰</h4>
-                       <div className="ra-voc-review-scroll" style={{ maxHeight: '600px', overflowY: 'auto' }}>
-                          {vocDetailLoading ? <div className="ra-loading"><Loader2 className="ra-spinner"/><span>리뷰 분석 중...</span></div> : vocDetailReviews.map((r, i) => renderReviewCard(r, i))}
-                       </div>
-                    </div>
-                  ) : <div className="ra-empty-state glass-panel" style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>왼쪽에서 키워드를 선택하여 상세 의견을 확인하세요.</div>}
-               </div>
-            </div>
-          </div>
-        )}
-      </div>
-    );
-  };
+  // ── AI 전략리포트 ─────────────────────────────────
+  const PRIORITY_LABEL = { high: '긴급', mid: '중요', low: '검토' };
+  const PRIORITY_COLOR = { high: '#E8734A', mid: '#F39C12', low: '#94a3b8' };
 
   const renderMarketing = () => {
-    if (!marketingData || !marketingData.products?.length) return <div className="ra-empty-state">데이터를 불러오는 중이거나 없습니다.</div>;
+    const products_list = marketingData?.products;
+    if (!products_list?.length) {
+      return <div className="ra-empty-state">AI 전략 리포트가 없습니다. 제품을 선택 후 탭을 클릭하세요.</div>;
+    }
+
     return (
       <div className="ra-marketing-container">
-        {marketingData.products.map((p, i) => (
-          <div key={i} className="ra-marketing-report">
-             <h2>AI 전략 마케팅 리포트</h2>
-             <div className="ra-mkt-report-header">
-                <span className="ra-mkt-brand">{p.brandName}</span>
-                <span className="ra-mkt-pname">{p.productName}</span>
-                <div className="ra-mkt-summary-shield">{p.persona?.target || '전략 수립 중...'}</div>
-             </div>
-             <div className="ra-mkt-grid">
-                <div className="ra-mkt-section">
-                   <h4><TrendingUp size={20}/> 핵심 소구점 (강점)</h4>
-                   <div className="ra-mkt-card"><ul style={{ paddingLeft: '1.2rem' }}>{p.strengths?.map((s,j)=><li key={j} style={{ marginBottom: '0.8rem' }}>{s}</li>)}</ul></div>
-                </div>
-                <div className="ra-mkt-section">
-                   <h4><TrendingDown size={20}/> 개선 필요 사항 (약점)</h4>
-                   <div className="ra-mkt-card"><ul style={{ paddingLeft: '1.2rem' }}>{p.weaknesses?.map((w,j)=><li key={j} style={{ marginBottom: '0.8rem' }}>{w}</li>)}</ul></div>
-                </div>
-                <div className="ra-mkt-section">
-                   <h4><Megaphone size={20}/> 브랜드 액션 플랜</h4>
-                   <div className="ra-mkt-action-list">{p.actionPlan?.map((plan, k) => (
-                     <div key={k} className="ra-mkt-action-item">
-                        <span className="ra-mkt-action-area">{plan.area}</span>
-                        <span className="ra-mkt-action-task">{plan.task}</span>
-                     </div>
-                   ))}</div>
-                </div>
-             </div>
-             <div style={{ marginTop: '3rem' }}>
-                <h4 style={{ marginBottom: '1.5rem', fontWeight: 800 }}>추천 콘텐츠 훅</h4>
-                <div className="ra-mkt-hooks-grid">{p.contentHooks?.map((hook, m) => (
-                   <div key={m} className="ra-mkt-hook-card"><h5>CONTENT HOOK #{m+1}</h5><p>{hook}</p></div>
-                ))}</div>
-             </div>
+        {/* 전체 리포트 생성일 */}
+        {marketingData.updatedAt && (
+          <div style={{ textAlign: 'right', marginBottom: '1rem', fontSize: '0.8rem', color: '#64748b' }}>
+            리포트 생성: {new Date(marketingData.updatedAt).toLocaleString('ko-KR', { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
           </div>
-        ))}
+        )}
+
+        {products_list.map((rawP, i) => {
+          const p = getMktProduct(rawP, i);
+          const pid = p.productId;
+          const override = pid ? marketingOverrides[pid] : null;
+          const displayUpdatedAt = override?.updatedAt || (i === 0 ? marketingData.updatedAt : null);
+
+          // 대시보드 통계 매칭
+          const dash = dashboardData.find(d => String(d.productId) === String(pid));
+          const total = dash ? parseInt(dash.totalReviews) || 0 : null;
+          const pos = dash ? parseInt(dash.positiveCount) || 0 : null;
+          const posRate = total > 0 ? Math.round(pos / total * 100) : null;
+          const avgRating = dash?.avgRating || null;
+          const todayCount = dash ? parseInt(dash.todayCount) || 0 : null;
+          const allTimeCount = dash ? parseInt(dash.allTimeCount) || 0 : null;
+
+          const isSending = pid && notionSendingPids.has(pid);
+          const notionUrl = pid ? notionUrls[pid] : null;
+
+          return (
+            <div key={i} className="ra-marketing-report">
+              {/* 제품별 툴바 */}
+              <div className="ra-mkt-product-toolbar">
+                <div>
+                  <span className="ra-mkt-brand">{p.brandName}</span>
+                  <span className="ra-mkt-pname" style={{ marginLeft: '0.75rem' }}>{p.productName}</span>
+                  {displayUpdatedAt && (
+                    <div style={{ fontSize: '0.75rem', color: '#64748b', marginTop: '0.2rem' }}>
+                      생성: {new Date(displayUpdatedAt).toLocaleString('ko-KR', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                    </div>
+                  )}
+                </div>
+                <div className="ra-mkt-product-actions">
+                  {notionUrl ? (
+                    <a href={notionUrl} target="_blank" rel="noopener noreferrer" className="ra-mkt-notion-btn success">
+                      <ExternalLink size={13} /> 노션 페이지 확인
+                    </a>
+                  ) : (
+                    <button
+                      className="ra-mkt-notion-btn"
+                      disabled={isSending}
+                      onClick={() => sendToNotion(p)}
+                    >
+                      {isSending ? <Loader2 size={13} className="ra-spinner" /> : null}
+                      {isSending ? '전송 중...' : '마케팅부문 노션으로 보내기'}
+                    </button>
+                  )}
+                  <button
+                    className="ra-mkt-regen-btn"
+                    onClick={() => { setRegenTargetPid(pid); setRegenPassword(''); setRegenError(''); setShowRegenModal(true); }}
+                  >
+                    ↺ AI 재생성
+                  </button>
+                </div>
+              </div>
+
+              {/* 대시보드 기본 정보 (레이아웃 차용) */}
+              {dash && (
+                <div className="ra-dashboard-row" style={{ marginTop: '1.5rem', marginBottom: '2rem' }}>
+                   <div className="ra-dash-card glass-panel" style={{ flex: '1 1 30%', padding: '1.5rem' }}>
+                     <div className="ra-dash-card-header">
+                       {dash.thumbnailUrl && <img src={dash.thumbnailUrl} alt="" className="ra-dash-thumb" style={{ width: '60px', height: '60px', borderRadius: '8px' }} />}
+                       <div style={{ wordBreak: 'keep-all' }}>
+                         <span className="ra-dash-brand" style={{ fontSize: '0.8rem', color: '#94a3b8' }}>{dash.brandName}</span>
+                         <h4 style={{ margin: '0.2rem 0 0 0', fontSize: '1rem', lineHeight: '1.4' }}>{dash.productName}</h4>
+                         {override?.page_url && <a href={override.page_url} target="_blank" rel="noreferrer" className="ra-external-link" style={{ fontSize: '0.75rem', marginTop: '0.5rem', display: 'inline-block' }}>상품 상세 보기 ↗</a>}
+                       </div>
+                     </div>
+                     <div className="ra-dash-stat" style={{ marginTop: '1.5rem', display: 'flex', alignItems: 'flex-end', gap: '0.5rem' }}>
+                       <span className="ra-dash-number" style={{ fontSize: '2rem', fontWeight: 'bold' }}>{total.toLocaleString()}</span>
+                       <span className="ra-dash-label" style={{ fontSize: '0.8rem', color: '#94a3b8', marginBottom: '0.4rem' }}>기간 내 리뷰수</span>
+                       <span className={`ra-dash-growth ${dash.growthRate >= 0 ? 'positive' : 'negative'}`} style={{ marginLeft: 'auto', marginBottom: '0.4rem', fontSize: '0.8rem' }}>{dash.growthRate >= 0 ? '↑' : '↓'} {Math.abs(dash.growthRate)}%</span>
+                     </div>
+                   </div>
+                   <div className="ra-dash-card glass-panel" style={{ flex: '1 1 30%', padding: '1.5rem' }}>
+                     <h4 style={{ fontSize: '1rem', marginBottom: '1.5rem' }}>{dash.brandName} {dash.productName}</h4>
+                     <div className="ra-sentiment-bars">
+                       <div className="ra-sentiment-bar" style={{ marginBottom: '1rem' }}>
+                         <span className="ra-sentiment-label positive" style={{ width: '60px', fontSize: '0.8rem' }}>긍정비중</span>
+                         <div className="ra-bar-track" style={{ flex: 1, height: '8px', background: 'rgba(255,255,255,0.1)', borderRadius: '4px', overflow: 'hidden' }}><div className="ra-bar-fill positive" style={{ width: `${posRate}%`, background: '#60a5fa', height: '100%' }} /></div>
+                         <span className="ra-sentiment-pct positive" style={{ width: '40px', textAlign: 'right', fontSize: '0.85rem', color: '#60a5fa', fontWeight: 'bold' }}>{posRate}%</span>
+                       </div>
+                       <div className="ra-sentiment-bar">
+                         <span className="ra-sentiment-label negative" style={{ width: '60px', fontSize: '0.8rem' }}>부정비중</span>
+                         <div className="ra-bar-track" style={{ flex: 1, height: '8px', background: 'rgba(255,255,255,0.1)', borderRadius: '4px', overflow: 'hidden' }}><div className="ra-bar-fill negative" style={{ width: `${100-posRate}%`, background: '#f87171', height: '100%' }} /></div>
+                         <span className="ra-sentiment-pct negative" style={{ width: '40px', textAlign: 'right', fontSize: '0.85rem', color: '#f87171', fontWeight: 'bold' }}>{100-posRate}%</span>
+                       </div>
+                     </div>
+                     {avgRating && <div className="ra-avg-rating" style={{ marginTop: '1.5rem', color: '#fbbf24', fontSize: '0.9rem', fontWeight: 'bold' }}>평균 ★ {avgRating}</div>}
+                   </div>
+                   <div className="ra-dash-card glass-panel" style={{ flex: '1 1 30%', padding: '1.5rem' }}>
+                     <h4 style={{ fontSize: '1rem', marginBottom: '1.5rem' }}>{dash.brandName} {dash.productName}</h4>
+                     <div className="ra-top-attrs" style={{ display: 'flex', flexDirection: 'column', gap: '1.2rem' }}>
+                       <div className="ra-attr-section">
+                         <span className="ra-attr-title" style={{ color: '#60a5fa', fontSize: '0.8rem', fontWeight: 'bold', display: 'block', marginBottom: '0.4rem' }}>TOP3 긍정 속성</span>
+                         <span className="ra-attr-values" style={{ color: '#fff', fontSize: '0.9rem' }}>{dash.topAttributes?.positive?.length ? dash.topAttributes.positive.slice(0, 3).map(a => a.name).join(', ') : '-'}</span>
+                       </div>
+                       <div className="ra-attr-section">
+                         <span className="ra-attr-title" style={{ color: '#f87171', fontSize: '0.8rem', fontWeight: 'bold', display: 'block', marginBottom: '0.4rem' }}>TOP3 부정 속성</span>
+                         <span className="ra-attr-values" style={{ color: '#fff', fontSize: '0.9rem' }}>{dash.topAttributes?.negative?.length ? dash.topAttributes.negative.slice(0, 3).map(a => a.name).join(', ') : '-'}</span>
+                       </div>
+                     </div>
+                   </div>
+                </div>
+              )}
+
+              {p.summary && <p className="ra-mkt-summary" style={{ marginBottom: '2rem' }}>{p.summary}</p>}
+
+              <div className="ra-mkt-grid">
+                {/* VoC 개선 */}
+                <div className="ra-mkt-section ra-mkt-section-full">
+                  <h4 className="ra-mkt-section-title"><TrendingDown size={16} /> VoC 기반 개선 액션플랜</h4>
+                  <div className="ra-mkt-voc-table-wrap">
+                    <table className="ra-marketing-voc-table">
+                      <thead><tr><th>우선순위</th><th>핵심 불만 이슈</th><th>개선 제안</th></tr></thead>
+                      <tbody>
+                        {(p.vocImprovements || []).map((item, j) => (
+                          <tr key={j}>
+                            <td><span className="ra-mkt-priority" style={{ background: PRIORITY_COLOR[item.priority] }}>{PRIORITY_LABEL[item.priority] || item.priority}</span></td>
+                            <td className="ra-voc-issue">{item.issue}</td>
+                            <td className="ra-voc-action">{item.suggestion}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+
+                {/* USP */}
+                <div className="ra-mkt-section">
+                  <h4 className="ra-mkt-section-title"><TrendingUp size={16} /> 핵심 소구포인트 (USP)</h4>
+                  <div className="ra-mkt-usp-list">
+                    {(p.uspPoints || []).map((usp, j) => (
+                      <div key={j} className="ra-mkt-usp-item">
+                        <span className="ra-mkt-usp-num">{j + 1}</span><span>{usp}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* 카피라이트 */}
+                <div className="ra-mkt-section">
+                  <h4 className="ra-mkt-section-title"><Megaphone size={16} /> 추천 광고 카피라이트</h4>
+                  <div className="ra-mkt-catchphrase-list">
+                    {(p.catchphrases || []).map((cp, j) => (
+                      <div key={j} className="ra-mkt-catchphrase-item">
+                        <span className="ra-mkt-badge catchphrase">COPY {j + 1}</span>
+                        <p>"{cp}"</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* 콘텐츠 아이디어 + 콘티 */}
+                <div className="ra-mkt-section ra-mkt-section-full">
+                  <h4 className="ra-mkt-section-title"><MessageSquare size={16} /> 콘텐츠 제작 아이디어 (30~60초 콘티)</h4>
+                  <div className="ra-mkt-hooks-grid">
+                    {(p.contentIdeas || []).map((idea, j) => (
+                      <div key={j} className="ra-mkt-hook-card">
+                        <span className="ra-mkt-badge" style={{ background: 'rgba(157,206,99,0.2)', color: '#9dce63' }}>{idea.format}</span>
+                        <p className="ra-mkt-content-concept">{idea.concept}</p>
+                        {idea.hook && <p className="ra-mkt-hook-text">💡 "{idea.hook}"</p>}
+                        {idea.storyboard && (
+                          <div className="ra-mkt-storyboard">📋 {idea.storyboard}</div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </div>
+          );
+        })}
       </div>
     );
   };
 
+  // ── 모달: 리뷰 팝업 ───────────────────────────────
   const renderReviewModal = () => {
     if (!showReviewModal) return null;
     return (
       <div className="ra-modal-overlay" onClick={() => setShowReviewModal(false)}>
-        <div className="ra-modal-content" onClick={e=>e.stopPropagation()}>
-          <div className="ra-modal-header"><h3>{modalTitle}</h3><button onClick={()=>setShowReviewModal(false)}><X size={20}/></button></div>
-          <div className="ra-modal-body">
-            {modalLoading ? <div className="ra-loading"><Loader2 className="ra-spinner"/><span>리뷰 데이터 로드 중...</span></div> : modalReviews.map((r, i) => renderReviewCard(r, i))}
+        <div className="ra-modal-content" onClick={e => e.stopPropagation()}>
+          <div className="ra-modal-header" style={{ borderBottom: 'none', paddingBottom: '0.5rem' }}>
+            <h3>{modalTitle}</h3>
+            <button onClick={() => setShowReviewModal(false)}><X size={20} /></button>
+          </div>
+          {modalReviews.length > 0 && (
+            <div className="ra-modal-subattrs" style={{ padding: '0 1.5rem', display: 'flex', gap: '0.5rem', flexWrap: 'wrap', marginBottom: '1rem' }}>
+              {[...new Set(modalReviews.flatMap(r => (r.sourceHighlight||[]).map(h => h.text)))].slice(0, 10).map((txt, idx) => (
+                <span key={idx} style={{ padding: '0.4rem 0.8rem', background: 'rgba(59, 130, 246, 0.1)', borderRadius: '50px', fontSize: '0.8rem', border: '1px solid rgba(59, 130, 246, 0.3)', color: '#93c5fd' }}>
+                  {txt}
+                </span>
+              ))}
+            </div>
+          )}
+          <div className="ra-modal-body" style={{ overflowY: 'auto' }}>
+            {modalLoading
+              ? <div className="ra-loading"><Loader2 className="ra-spinner" /><span>리뷰 로드 중...</span></div>
+              : modalReviews.map((r, i) => renderReviewCard(r, i))
+            }
           </div>
         </div>
       </div>
     );
   };
 
+  // ── 모달: 워드클라우드 ────────────────────────────
   const renderWordCloudModal = () => {
     if (!showWordCloudModal) return null;
-    
-    // Config for react-wordcloud
     const options = {
-      colors: CHART_COLORS,
-      enableTooltip: true,
-      deterministic: false,
-      fontFamily: 'Pretendard',
-      fontSizes: [20, 80],
-      fontStyle: 'normal',
-      fontWeight: 'bold',
-      padding: 5,
-      rotations: 3,
-      rotationAngles: [-90, 0],
-      scale: 'sqrt',
-      spiral: 'archimedean',
-      transitionDuration: 1000,
+      colors: CHART_COLORS, enableTooltip: true, deterministic: true,
+      fontFamily: 'sans-serif', fontSizes: [14, 60], fontWeight: 'bold',
+      padding: 4, rotations: 1, rotationAngles: [0, 0],
+      scale: 'sqrt', spiral: 'archimedean', transitionDuration: 500,
     };
-    
+    const safeWords = (wordCloudData || [])
+      .filter(w => w.value > 0 && w.text)
+      .slice(0, 50);
     return (
       <div className="ra-modal-overlay" onClick={() => setShowWordCloudModal(false)}>
-        <div className="ra-modal-content" onClick={e=>e.stopPropagation()}>
-          <div className="ra-modal-header"><h3>데이터 기반 버즈량 상세 분석</h3><button onClick={()=>setShowWordCloudModal(false)}><X size={20}/></button></div>
-          <div className="ra-modal-body" style={{ height: '500px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-             {wordCloudData.length > 0 ? (
-                <div style={{ width: '100%', height: '100%' }}>
-                  <ReactWordcloud 
-                    options={options} 
-                    words={wordCloudData} 
-                    callbacks={{
-                      onWordClick: (word) => {
-                        setShowWordCloudModal(false);
-                        openReviewModal(word.text, selectedProducts, word.text, null);
-                      }
-                    }} 
-                  />
-                </div>
-             ) : (
-               <div className="ra-empty-state">워드클라우드 데이터가 없습니다.</div>
-             )}
+        <div className="ra-modal-content" onClick={e => e.stopPropagation()}>
+          <div className="ra-modal-header">
+            <h3>버즈량 분석</h3>
+            <button onClick={() => setShowWordCloudModal(false)}><X size={20} /></button>
+          </div>
+          <div className="ra-modal-body" style={{ padding: '1.5rem' }}>
+            {safeWords.length > 0 ? (
+              <div style={{ width: '100%', height: 400 }}>
+                <ReactWordcloud
+                  options={options}
+                  words={safeWords}
+                  callbacks={{
+                    onWordClick: (word) => {
+                      setShowWordCloudModal(false);
+                      setTimeout(() => {
+                        openReviewModal(word.text, wordCloudPid ? [wordCloudPid] : selectedProducts, word.text, null);
+                      }, 0);
+                    },
+                  }}
+                />
+              </div>
+            ) : <div className="ra-empty-state">데이터가 없습니다.</div>}
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  // ── 모달: AI 재생성 패스워드 ──────────────────────
+  const renderRegenModal = () => {
+    if (!showRegenModal) return null;
+    return (
+      <div className="ra-modal-overlay" onClick={() => setShowRegenModal(false)}>
+        <div className="ra-modal-content" style={{ maxWidth: 400 }} onClick={e => e.stopPropagation()}>
+          <div className="ra-modal-header">
+            <h3 style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}><Lock size={18} /> AI 리포트 재생성</h3>
+            <button onClick={() => setShowRegenModal(false)}><X size={20} /></button>
+          </div>
+          <div className="ra-modal-body" style={{ padding: '1.5rem' }}>
+            <p style={{ color: '#94a3b8', marginBottom: '1.5rem', fontSize: '0.9rem' }}>
+              재생성하면 기존 리포트를 덮어씁니다. 비밀번호를 입력하세요.
+            </p>
+            <input
+              type="password"
+              placeholder="비밀번호 입력"
+              value={regenPassword}
+              onChange={e => setRegenPassword(e.target.value)}
+              onKeyDown={e => e.key === 'Enter' && handleRegenSubmit()}
+              style={{ width: '100%', padding: '0.75rem 1rem', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.15)', borderRadius: '10px', color: '#fff', fontSize: '1rem', marginBottom: '0.75rem', boxSizing: 'border-box' }}
+              autoFocus
+            />
+            {regenError && <p style={{ color: '#f87171', fontSize: '0.85rem', marginBottom: '0.75rem' }}>{regenError}</p>}
+            <button
+              onClick={handleRegenSubmit}
+              style={{ width: '100%', padding: '0.75rem', background: 'var(--primary)', border: 'none', borderRadius: '10px', color: '#000', fontWeight: 800, fontSize: '1rem', cursor: 'pointer' }}
+            >
+              재생성 시작
+            </button>
           </div>
         </div>
       </div>
@@ -524,49 +1121,82 @@ export default function ReviewAnalysisPage() {
     <main className="container ra-container">
       <header className="ra-header">
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
-          <div><h1 className="ra-page-title">리워드 & VoC 마켓 인사이트</h1><p style={{ color: 'var(--text-dim)' }}>애경 브랜드의 시장 경쟁력을 AI로 실시간 분석합니다.</p></div>
-          <div className="ra-date-range"><Calendar size={18}/><input type="date" value={startDate} onChange={e=>setStartDate(e.target.value)} /> ~ <input type="date" value={endDate} onChange={e=>setEndDate(e.target.value)} /></div>
+          <div>
+            <h1 className="ra-page-title">리뷰 &amp; VoC 마켓 인사이트</h1>
+            <p style={{ color: 'var(--text-dim)' }}>애경 브랜드의 시장 경쟁력을 AI로 실시간 분석합니다.</p>
+          </div>
+          <div className="ra-date-range">
+            <Calendar size={18} />
+            <input type="date" value={startDate} onChange={e => setStartDate(e.target.value)} /> ~
+            <input type="date" value={endDate} onChange={e => setEndDate(e.target.value)} />
+          </div>
         </div>
-        
-        {/* 복구된 상품 선택 UI + 칩셋 */}
+
         <div className="ra-product-selector" style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap', alignItems: 'flex-start' }} ref={dropdownRef}>
-           <div style={{ position: 'relative' }}>
-              <button className="ra-dropdown-trigger glass-panel" onClick={()=>setShowProductDropdown(!showProductDropdown)}>{selectedProducts.length}개 제품 분석 중 <ChevronDown size={18}/></button>
-              {showProductDropdown && <div className="ra-dropdown-menu glass-panel">{products.map(p=>(<label key={p.id}><input type="checkbox" checked={selectedProducts.includes(p.id)} onChange={()=>setSelectedProducts(prev=>prev.includes(p.id)?prev.filter(x=>x!==p.id):[...prev, p.id])}/> {p.productName}</label>))}</div>}
-           </div>
-           
-           <div className="ra-selected-tags" style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', flex: 1, padding: '0.3rem 0' }}>
-              {selectedProducts.map(pid => {
-                 const prod = products.find(p => p.id === pid);
-                 if(!prod) return null;
-                 return (
-                   <div key={pid} style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem', padding: '0.5rem 1rem', background: 'rgba(255,255,255,0.08)', border: '1px solid currentColor', color: '#9dce63', borderRadius: '50px', fontSize: '0.85rem', fontWeight: 600 }}>
-                      {prod.productName}
-                      <button onClick={()=>removeProduct(pid)} style={{ background: 'none', border: 'none', color: '#9dce63', cursor: 'pointer', padding: 0, opacity: 0.8 }}><X size={14}/></button>
-                   </div>
-                 );
-              })}
-           </div>
+          <div style={{ position: 'relative' }}>
+            <button className="ra-dropdown-trigger glass-panel" onClick={() => setShowProductDropdown(!showProductDropdown)}>
+              {selectedProducts.length > 0 ? `${selectedProducts.length}개 제품 선택됨` : '제품 선택'} <ChevronDown size={18} />
+            </button>
+            {showProductDropdown && (
+              <div className="ra-dropdown-menu glass-panel">
+                {products.map(p => (
+                  <label key={p.id}>
+                    <input
+                      type="checkbox"
+                      checked={selectedProducts.includes(p.id)}
+                      onChange={() => setSelectedProducts(prev =>
+                        prev.includes(p.id) ? prev.filter(x => x !== p.id) : [...prev, p.id]
+                      )}
+                    />
+                    {' '}{p.productName}
+                  </label>
+                ))}
+              </div>
+            )}
+          </div>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', flex: 1 }}>
+            {selectedProducts.map(pid => {
+              const prod = products.find(p => p.id === pid);
+              if (!prod) return null;
+              return (
+                <div key={pid} style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem', padding: '0.5rem 1rem', background: 'rgba(255,255,255,0.08)', border: '1px solid #9dce63', color: '#9dce63', borderRadius: '50px', fontSize: '0.85rem', fontWeight: 600 }}>
+                  {prod.productName}
+                  <button onClick={() => removeProduct(pid)} style={{ background: 'none', border: 'none', color: '#9dce63', cursor: 'pointer', padding: 0 }}><X size={14} /></button>
+                </div>
+              );
+            })}
+          </div>
+          <button className="ra-manage-btn" onClick={() => setShowUrlManager(true)}><Settings size={16} /> URL 관리</button>
         </div>
-        
+
         <div className="ra-tabs">
-          {TABS.map(t => <button key={t.id} className={`ra-tab ${activeTab===t.id?'active':''}`} onClick={()=>setActiveTab(t.id)}><t.icon size={18}/> {t.label}</button>)}
+          {TABS.map(t => (
+            <button key={t.id} className={`ra-tab ${activeTab === t.id ? 'active' : ''}`} onClick={() => setActiveTab(t.id)}>
+              <t.icon size={18} /> {t.label}
+            </button>
+          ))}
         </div>
       </header>
+
       <div className="ra-content">
-        {loading ? <div className="ra-loading"><Loader2 className="ra-spinner" size={40}/><span>데이터를 심층 분석하고 있습니다...</span></div> : (
-          <>
-            {activeTab === 'dashboard' && renderDashboard()}
-            {activeTab === 'sentiment' && renderSentiment()}
-            {activeTab === 'voc' && renderVoc()}
-            {activeTab === 'marketing' && renderMarketing()}
-            {activeTab === 'period' && <div className="ra-empty-state">해당 탭은 준비중입니다... (UI 통합 중)</div>}
-          </>
-        )}
+        {loading
+          ? <div className="ra-loading"><Loader2 className="ra-spinner" size={40} /><span>데이터를 분석하고 있습니다...</span></div>
+          : (
+            <>
+              {activeTab === 'dashboard' && renderDashboard()}
+              {activeTab === 'period' && renderPeriod()}
+              {activeTab === 'sentiment' && renderSentiment()}
+              {activeTab === 'voc' && renderVoc()}
+              {activeTab === 'marketing' && renderMarketing()}
+            </>
+          )
+        }
       </div>
+
       {renderReviewModal()}
       {renderWordCloudModal()}
-      <ProductUrlManager isOpen={showUrlManager} onClose={()=>setShowUrlManager(false)} products={products} onRefresh={fetchProducts} />
+      {renderRegenModal()}
+      <ProductUrlManager isOpen={showUrlManager} onClose={() => setShowUrlManager(false)} products={products} onRefresh={fetchProducts} />
     </main>
   );
 }

@@ -90,10 +90,24 @@ export async function initDb() {
 
     // product_reviews에 unique 인덱스 추가 (중복 방지)
     await sql`
-      CREATE UNIQUE INDEX IF NOT EXISTS idx_review_unique 
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_review_unique
       ON product_reviews(product_id, review_date, COALESCE(reviewer_nickname, ''), LEFT(COALESCE(review_text, ''), 100));
     `;
-    
+
+    // AI 마케팅 리포트 캐시 테이블
+    await sql`
+      CREATE TABLE IF NOT EXISTS marketing_reports (
+        id SERIAL PRIMARY KEY,
+        report_key TEXT NOT NULL UNIQUE,
+        product_ids TEXT NOT NULL,
+        start_date TEXT NOT NULL,
+        end_date TEXT NOT NULL,
+        report_data JSONB NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+    `;
+
     console.log('Database initialized and migrated successfully.');
   } catch (error) {
     console.error('Failed to initialize database:', error);
@@ -458,7 +472,7 @@ export async function getReviewDashboard(productIds, startDate, endDate) {
   try {
     const ids = productIds.join(',');
     const { rows } = await sql.query(`
-      SELECT 
+      SELECT
         rp.id as "productId",
         rp.brand_name as "brandName",
         rp.product_name as "productName",
@@ -467,9 +481,11 @@ export async function getReviewDashboard(productIds, startDate, endDate) {
         COUNT(CASE WHEN pr.sentiment = 'positive' THEN 1 END) as "positiveCount",
         COUNT(CASE WHEN pr.sentiment = 'negative' THEN 1 END) as "negativeCount",
         COUNT(CASE WHEN pr.sentiment = 'neutral' THEN 1 END) as "neutralCount",
-        ROUND(AVG(pr.rating)::numeric, 1) as "avgRating"
+        ROUND(AVG(pr.rating)::numeric, 1) as "avgRating",
+        (SELECT COUNT(*) FROM product_reviews WHERE product_id = rp.id AND review_date = TO_CHAR(CURRENT_DATE, 'YYYY-MM-DD')) as "todayCount",
+        (SELECT COUNT(*) FROM product_reviews WHERE product_id = rp.id) as "allTimeCount"
       FROM review_products rp
-      LEFT JOIN product_reviews pr ON rp.id = pr.product_id 
+      LEFT JOIN product_reviews pr ON rp.id = pr.product_id
         AND pr.review_date >= $1 AND pr.review_date <= $2
       WHERE rp.id = ANY($3::int[])
       GROUP BY rp.id, rp.brand_name, rp.product_name, rp.thumbnail_url
@@ -637,5 +653,34 @@ export async function getAttributeStatsByProduct(productIds, startDate, endDate)
   } catch (error) {
     console.error('Get attribute stats by product error:', error);
     return [];
+  }
+}
+
+export async function getMarketingReport(reportKey) {
+  if (!isProd) return null;
+  try {
+    const { rows } = await sql.query(
+      `SELECT report_data, updated_at FROM marketing_reports WHERE report_key = $1`,
+      [reportKey]
+    );
+    return rows[0] || null;
+  } catch (error) {
+    console.error('Get marketing report error:', error);
+    return null;
+  }
+}
+
+export async function saveMarketingReport(reportKey, productIds, startDate, endDate, reportData) {
+  if (!isProd) return;
+  try {
+    await sql.query(
+      `INSERT INTO marketing_reports (report_key, product_ids, start_date, end_date, report_data, updated_at)
+       VALUES ($1, $2, $3, $4, $5, NOW())
+       ON CONFLICT (report_key)
+       DO UPDATE SET report_data = EXCLUDED.report_data, updated_at = NOW()`,
+      [reportKey, productIds, startDate, endDate, JSON.stringify(reportData)]
+    );
+  } catch (error) {
+    console.error('Save marketing report error:', error);
   }
 }
