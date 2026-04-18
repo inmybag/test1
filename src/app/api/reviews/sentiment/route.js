@@ -9,6 +9,7 @@ export async function GET(request) {
     const startDate = searchParams.get('startDate');
     const endDate = searchParams.get('endDate');
     const attribute = searchParams.get('attribute') || null;
+    const sentiment = searchParams.get('sentiment') || null;
 
     if (!productIdsStr || !startDate || !endDate) {
       return NextResponse.json({ error: '필수 파라미터가 누락되었습니다.' }, { status: 400 });
@@ -17,7 +18,7 @@ export async function GET(request) {
     const productIds = productIdsStr.split(',').map(Number);
 
     // 속성별 긍/부정 통계
-    const attributeStats = await getAttributeStats(productIds, startDate, endDate);
+    const attributeStats = await getAttributeStats(productIds, startDate, endDate, sentiment);
     
     // 속성별 긍/부정 비율 데이터 가공
     const attributeMap = {};

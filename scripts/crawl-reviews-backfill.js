@@ -7,10 +7,10 @@ const axios = require('axios');
 require('dotenv').config({ path: '.env.local' });
 require('dotenv').config();
 const { createPool } = require('@vercel/postgres');
-const Anthropic = require('@anthropic-ai/sdk').default;
+const { GoogleGenerativeAI } = require('@google/generative-ai');
 
 const pool = createPool({ connectionString: process.env.POSTGRES_URL });
-const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 
 // PostgreSQL JSONB 오류 방지를 위한 유효하지 않은 유니코드 제거 함수
 function sanitizeString(str) {
@@ -56,6 +56,7 @@ function decodeSkin(profile) {
 async function analyzeAndSaveBatch(productId, reviews, platformLabel) {
   if (!reviews.length) return 0;
   
+  const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash-lite' });
   const texts = reviews.map((r, idx) => `[${idx}] ${sanitizeString(r.review_text)}`).join('\n');
 
   const prompt = `다음은 화장품 리뷰들입니다. 각 리뷰의 감성을 분석해주세요.
@@ -72,46 +73,25 @@ JSON 배열로만 응답. 코드블록 없이:
 [{"index":0,"sentiment":"positive","sentiment_score":0.9,"attributes":[{"name":"커버력","sentiment":"positive","keyword":"잘 커버"}],"source_highlight":[{"text":"잡티가 잘 커버","attribute":"커버력","sentiment":"positive"}]}]`;
 
   let analyzed = [];
-  let success = false;
-  let retries = 3;
+  try {
+    const res = await model.generateContent(prompt);
+    const text = res.response.text().trim().replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+    const analyses = JSON.parse(text);
 
-  while (!success && retries > 0) {
-    try {
-      const res = await anthropic.messages.create({
-        model: 'claude-haiku-4-5-20251001',
-        max_tokens: 4096,
-        messages: [{ role: 'user', content: prompt }],
-      });
-      const text = res.content[0].text.trim().replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
-      const analyses = JSON.parse(text);
-
-      for (const a of analyses) {
-        const r = reviews[a.index];
-        if (r) {
-          analyzed.push({
-            ...r,
-            sentiment: a.sentiment,
-            sentiment_score: a.sentiment_score,
-            attributes: (a.attributes || []).map(attr => ({ ...attr, name: sanitizeString(attr.name), keyword: sanitizeString(attr.keyword) })),
-            source_highlight: (a.source_highlight || []).map(sh => ({ ...sh, text: sanitizeString(sh.text), attribute: sanitizeString(sh.attribute) }))
-          });
-        }
-      }
-      success = true;
-    } catch (e) {
-      if (e.status === 429 || e.message?.includes('rate_limit')) {
-        console.log(`    [Claude] 속도 제한. 대기 후 재시도... (남은 횟수: ${retries - 1})`);
-        await new Promise(r => setTimeout(r, 15000));
-        retries--;
-      } else {
-        console.error('    [Claude] 오류:', e.message);
-        analyzed = reviews.map(r => ({ ...r, sentiment: 'neutral', sentiment_score: 0.5, attributes: [], source_highlight: [] }));
-        success = true;
+    for (const a of analyses) {
+      const r = reviews[a.index];
+      if (r) {
+        analyzed.push({
+          ...r,
+          sentiment: a.sentiment,
+          sentiment_score: a.sentiment_score,
+          attributes: (a.attributes || []).map(attr => ({ ...attr, name: sanitizeString(attr.name), keyword: sanitizeString(attr.keyword) })),
+          source_highlight: (a.source_highlight || []).map(sh => ({ ...sh, text: sanitizeString(sh.text), attribute: sanitizeString(sh.attribute) }))
+        });
       }
     }
-  }
-
-  if (!success) {
+  } catch (e) {
+    console.error('    [Gemini] 오류:', e.message);
     analyzed = reviews.map(r => ({ ...r, sentiment: 'neutral', sentiment_score: 0.5, attributes: [], source_highlight: [] }));
   }
 

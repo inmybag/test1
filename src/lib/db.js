@@ -546,10 +546,10 @@ export async function getReviewsWithDetails(productIds, startDate, endDate, sent
   }
 }
 
-export async function getAttributeStats(productIds, startDate, endDate) {
+export async function getAttributeStats(productIds, startDate, endDate, sentiment = null) {
   if (!isProd) return [];
   try {
-    const { rows } = await sql.query(`
+    let query = `
       SELECT
         attr->>'name' as "attributeName",
         attr->>'sentiment' as "sentiment",
@@ -558,9 +558,18 @@ export async function getAttributeStats(productIds, startDate, endDate) {
       JOIN review_products rp ON rp.id = pr.product_id,
         jsonb_array_elements(pr.attributes) as attr
       WHERE rp.id = ANY($1::int[]) AND pr.review_date >= $2 AND pr.review_date <= $3
-      GROUP BY attr->>'name', attr->>'sentiment'
-      ORDER BY "count" DESC
-    `, [productIds, startDate, endDate]);
+    `;
+    const params = [productIds, startDate, endDate];
+    let paramIdx = 4;
+
+    if (sentiment) {
+      query += ` AND attr->>'sentiment' = $${paramIdx++}`;
+      params.push(sentiment);
+    }
+
+    query += ` GROUP BY attr->>'name', attr->>'sentiment' ORDER BY "count" DESC`;
+
+    const { rows } = await sql.query(query, params);
     return rows;
   } catch (error) {
     console.error('Get attribute stats error:', error);

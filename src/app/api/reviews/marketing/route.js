@@ -1,8 +1,8 @@
 import { NextResponse } from 'next/server';
 import { getReviewDashboard, getTopAttributes, getReviewsWithDetails, initDb } from '@/lib/db';
-import Anthropic from '@anthropic-ai/sdk';
+import { GoogleGenerativeAI } from '@google/generative-ai';
 
-const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 
 export async function GET(request) {
   try {
@@ -35,48 +35,58 @@ export async function GET(request) {
 평균 별점: ${d.avgRating}
 TOP 긍정 속성: ${attrs.positive.map(a => a.name).join(', ') || '없음'}
 TOP 부정 속성: ${attrs.negative.map(a => a.name).join(', ') || '없음'}
-대표 부정 리뷰: ${negativeReviews.filter(r => r.productId === d.productId).slice(0, 3).map(r => r.reviewText).join(' | ') || '없음'}
-대표 긍정 리뷰: ${positiveReviews.filter(r => r.productId === d.productId).slice(0, 3).map(r => r.reviewText).join(' | ') || '없음'}
+표본 부정 리뷰: ${negativeReviews.filter(r => r.productId === d.productId).slice(0, 3).map(r => r.reviewText).join(' | ') || '없음'}
+표본 긍정 리뷰: ${positiveReviews.filter(r => r.productId === d.productId).slice(0, 3).map(r => r.reviewText).join(' | ') || '없음'}
 `;
     }).join('\n---\n');
 
-    const prompt = `당신은 화장품/뷰티 브랜드의 마케팅 전략 전문가입니다.
-아래 제품들의 리뷰 분석 결과를 바탕으로 마케팅 분석 리포트를 작성해주세요.
+    const prompt = `당신은 뷰티/화장품 산업 전문 마케팅 전략 컨설턴트입니다. 
+제공된 리뷰 분석 데이터를 기반으로 브랜드 성장을 위한 심층 마케팅 분석 리포트를 생성해주세요.
 
+데이터:
 ${productSummaries}
 
-아래 항목들에 대해 JSON 포맷으로 응답해주세요:
+다음 구조의 JSON으로만 응답해주세요:
 {
   "products": [
     {
       "productName": "제품명",
-      "vocItems": [
-        {"issue": "VoC 핵심내용 (부정 속성/불만 키워드)", "action": "구체적 대응 액션플랜"}
+      "brandName": "브랜드명",
+      "summary": "핵심 요약 한줄",
+      "persona": {
+        "target": "주요 타겟 고객층 설명",
+        "painPoint": "그들이 해결하고자 하는 핵심 고민"
+      },
+      "strengths": ["강점 1", "강점 2"],
+      "weaknesses": ["약점 1", "약점 2"],
+      "actionPlan": [
+        {"area": "제품 개선/운영", "task": "구체적 과제"},
+        {"area": "마케팅/광고", "task": "구체적 과제"}
       ],
-      "marketingPoints": {
-        "catchphrase": ["추천 캐치프라이즈/키 메시지 1", "추천 캐치프라이즈 2"],
-        "usp": ["제품 차별화 포인트(USP) 1", "USP 2"],
-        "contentIdeas": ["영상/콘텐츠 제작 아이디어 1", "아이디어 2", "아이디어 3"]
+      "marketingHooks": {
+        "catchphrases": ["카피라이트 1", "카피라이트 2"],
+        "contentConcepts": ["영상/화보 컨셉 1", "체험단 가이드 포인트"]
       }
     }
   ]
 }
 
-JSON만 출력해주세요. 마크다운 코드블록 없이 순수 JSON만 반환해주세요.`;
+설명 없이 순수 JSON 배열만 출력하세요.`;
 
-    const result = await anthropic.messages.create({
-      model: 'claude-sonnet-4-6',
-      max_tokens: 4096,
-      messages: [{ role: 'user', content: prompt }],
-    });
-
-    const text = result.content[0].text.trim().replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+    const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
+    const result = await model.generateContent(prompt);
+    const response = await result.response;
+    let text = response.text().trim();
+    
+    // JSON 추출 (마크다운 가드 제거)
+    text = text.replace(/```json/g, '').replace(/```/g, '').trim();
 
     let marketingData;
     try {
       marketingData = JSON.parse(text);
     } catch (e) {
-      marketingData = { products: [], rawText: text };
+      console.error('JSON Parse Error:', text);
+      marketingData = { products: [], error: '데이터 구조 생성 중 오류가 발생했습니다.' };
     }
 
     return NextResponse.json({ data: marketingData });
