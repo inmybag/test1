@@ -503,16 +503,16 @@ export default function ReviewAnalysisPage() {
 
     return (
       <div className="ra-period-container">
-        <div className="ra-period-left">
-          <div className="ra-chart-panel glass-panel">
-            <div style={{ height: 320 }}>
+        <div className="ra-period-left" style={{ display: 'flex', flexDirection: 'column', height: 'calc(100vh - 260px)' }}>
+          <div className="ra-chart-panel glass-panel" style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+            <div style={{ height: 320, flexShrink: 0 }}>
               {dates.length > 0
                 ? <Line data={lineChartData} options={lineOpts} />
                 : <div className="ra-empty-state">차트 데이터가 없습니다.</div>
               }
             </div>
             {attrChips.length > 0 && (
-              <div className="ra-attr-chips">
+              <div className="ra-attr-chips" style={{ flex: 1, overflowY: 'auto' }}>
                 {attrChips.map(({ name, count }) => (
                   <button
                     key={name}
@@ -529,8 +529,8 @@ export default function ReviewAnalysisPage() {
             )}
           </div>
         </div>
-        <div className="ra-period-right">
-          <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flexWrap: 'wrap' }}>
+        <div className="ra-period-right" style={{ display: 'flex', flexDirection: 'column', height: 'calc(100vh - 260px)' }}>
+          <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flexWrap: 'wrap', flexShrink: 0 }}>
             <div className="ra-filter-bar">
               {['전체', '긍정', '중립', '부정'].map(label => {
                 const val = label === '전체' ? null : label === '긍정' ? 'positive' : label === '부정' ? 'negative' : 'neutral';
@@ -553,7 +553,7 @@ export default function ReviewAnalysisPage() {
               </button>
             )}
           </div>
-          <div className="ra-review-list" style={{ flex: 1 }}>
+          <div className="ra-review-list" style={{ flex: 1, overflowY: 'auto', paddingRight: '0.2rem' }}>
             {(reviews || []).map((r, i) => renderReviewCard(r, i))}
             {(!reviews || !reviews.length) && (
               <div className="ra-empty-state">
