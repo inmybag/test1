@@ -1,7 +1,8 @@
 import { NextResponse } from 'next/server';
 import { getReviewDashboard, getTopAttributes, getReviewsWithDetails, initDb } from '@/lib/db';
+import Anthropic from '@anthropic-ai/sdk';
 
-const { GoogleGenerativeAI } = require('@google/generative-ai');
+const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
 export async function GET(request) {
   try {
@@ -17,22 +18,14 @@ export async function GET(request) {
 
     const productIds = productIdsStr.split(',').map(Number);
 
-    // 대시보드 및 속성 데이터 수집
     const dashboard = await getReviewDashboard(productIds, startDate, endDate);
-    
-    // 부정 리뷰 수집 (마케팅 전략 도출용)
     const negativeReviews = await getReviewsWithDetails(productIds, startDate, endDate, 'negative');
     const positiveReviews = await getReviewsWithDetails(productIds, startDate, endDate, 'positive');
-    
-    // TOP 속성
+
     const topAttributes = {};
     for (const pid of productIds) {
       topAttributes[pid] = await getTopAttributes([pid], startDate, endDate);
     }
-
-    // Gemini AI로 마케팅 분석 생성
-    const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-    const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash' });
 
     const productSummaries = dashboard.map(d => {
       const attrs = topAttributes[d.productId] || { positive: [], negative: [] };
@@ -47,8 +40,7 @@ TOP 부정 속성: ${attrs.negative.map(a => a.name).join(', ') || '없음'}
 `;
     }).join('\n---\n');
 
-    const prompt = `
-당신은 화장품/뷰티 브랜드의 마케팅 전략 전문가입니다.
+    const prompt = `당신은 화장품/뷰티 브랜드의 마케팅 전략 전문가입니다.
 아래 제품들의 리뷰 분석 결과를 바탕으로 마케팅 분석 리포트를 작성해주세요.
 
 ${productSummaries}
@@ -58,30 +50,31 @@ ${productSummaries}
   "products": [
     {
       "productName": "제품명",
-      "vocResponse": {
-        "title": "불만 VoC 대응 방안 제목",
-        "actions": ["구체적 대응 액션 1", "대응 액션 2", "대응 액션 3"]
-      },
+      "vocItems": [
+        {"issue": "VoC 핵심내용 (부정 속성/불만 키워드)", "action": "구체적 대응 액션플랜"}
+      ],
       "marketingPoints": {
-        "catchphrase": ["추천 캐치프라이즈 1", "추천 캐치프라이즈 2"],
+        "catchphrase": ["추천 캐치프라이즈/키 메시지 1", "추천 캐치프라이즈 2"],
         "usp": ["제품 차별화 포인트(USP) 1", "USP 2"],
         "contentIdeas": ["영상/콘텐츠 제작 아이디어 1", "아이디어 2", "아이디어 3"]
-      },
-      "improvementSuggestions": ["개선 제안 1", "개선 제안 2"]
+      }
     }
   ]
 }
 
-JSON만 출력해주세요. 마크다운 코드블록 없이 순수 JSON만 반환해주세요.
-`;
+JSON만 출력해주세요. 마크다운 코드블록 없이 순수 JSON만 반환해주세요.`;
 
-    const result = await model.generateContent(prompt);
-    const text = result.response.text().trim();
-    
+    const result = await anthropic.messages.create({
+      model: 'claude-sonnet-4-6',
+      max_tokens: 4096,
+      messages: [{ role: 'user', content: prompt }],
+    });
+
+    const text = result.content[0].text.trim().replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+
     let marketingData;
     try {
-      const jsonStr = text.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
-      marketingData = JSON.parse(jsonStr);
+      marketingData = JSON.parse(text);
     } catch (e) {
       marketingData = { products: [], rawText: text };
     }

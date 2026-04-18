@@ -605,3 +605,28 @@ export async function getTopAttributes(productIds, startDate, endDate) {
     return { positive: [], negative: [] };
   }
 }
+
+export async function getAttributeStatsByProduct(productIds, startDate, endDate) {
+  if (!isProd) return [];
+  try {
+    const { rows } = await sql.query(`
+      SELECT
+        rp.id as "productId",
+        rp.product_name as "productName",
+        rp.brand_name as "brandName",
+        attr->>'name' as "attributeName",
+        attr->>'sentiment' as "sentiment",
+        COUNT(*) as "count"
+      FROM product_reviews pr,
+        jsonb_array_elements(pr.attributes) as attr
+      JOIN review_products rp ON rp.id = pr.product_id
+      WHERE rp.id = ANY($1::int[]) AND pr.review_date >= $2 AND pr.review_date <= $3
+      GROUP BY rp.id, rp.product_name, rp.brand_name, attr->>'name', attr->>'sentiment'
+      ORDER BY rp.id, COUNT(*) DESC
+    `, [productIds, startDate, endDate]);
+    return rows;
+  } catch (error) {
+    console.error('Get attribute stats by product error:', error);
+    return [];
+  }
+}

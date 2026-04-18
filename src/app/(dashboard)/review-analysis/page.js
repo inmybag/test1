@@ -36,10 +36,16 @@ export default function ReviewAnalysisPage() {
   const [sentimentData, setSentimentData] = useState({ attributeStats: [], attributeReviews: [] });
   const [vocData, setVocData] = useState([]);
   const [marketingData, setMarketingData] = useState(null);
-  
+
   const [loading, setLoading] = useState(false);
   const [sentimentFilter, setSentimentFilter] = useState(null);
   const [selectedAttribute, setSelectedAttribute] = useState(null);
+
+  // VoC 상세 패널 상태
+  const [selectedVocRow, setSelectedVocRow] = useState(null);
+  const [vocDetailFilter, setVocDetailFilter] = useState(null);
+  const [vocDetailReviews, setVocDetailReviews] = useState([]);
+  const [vocDetailLoading, setVocDetailLoading] = useState(false);
 
   // Period Analysis Pagination States
   const [reviewPage, setReviewPage] = useState(1);
@@ -139,6 +145,22 @@ export default function ReviewAnalysisPage() {
       console.error(`${tab} 데이터 로드 실패:`, err);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadVocDetail = async (row, sentiment) => {
+    setVocDetailLoading(true);
+    setVocDetailReviews([]);
+    try {
+      const params = new URLSearchParams({ productIds: row.productId, startDate, endDate, attribute: row.attributeName });
+      if (sentiment) params.set('sentiment', sentiment);
+      const res = await fetch(`/api/reviews/period?${params}`);
+      const data = await res.json();
+      setVocDetailReviews(data.reviews || []);
+    } catch (err) {
+      console.error('VoC 상세 로드 실패:', err);
+    } finally {
+      setVocDetailLoading(false);
     }
   };
 
@@ -656,35 +678,125 @@ export default function ReviewAnalysisPage() {
         {vocData.length === 0 ? (
           <div className="ra-empty-state">VoC 데이터가 없습니다.</div>
         ) : (
-          <div className="ra-voc-grid">
-            {vocData.map((voc, idx) => (
-              <div key={idx} className="ra-voc-card glass-panel">
-                <div className="ra-voc-header">
-                  <h4>{voc.name}</h4>
-                  <span className="ra-voc-count">총 {voc.totalCount}건</span>
-                </div>
-                <div className="ra-voc-body">
-                  <div className="ra-voc-section">
-                    <span className="ra-voc-label positive">긍정 ({voc.positive?.count || 0})</span>
-                    <div className="ra-voc-keywords">
-                      {(voc.positive?.keywords || []).map((kw, ki) => (
-                        <span key={ki} className="ra-voc-keyword positive">{kw.keyword} ({kw.count})</span>
+          <div className="ra-voc-layout">
+            {/* 왼쪽: 속성 테이블 */}
+            <div className="ra-voc-table-panel glass-panel">
+              <table className="ra-voc-table">
+                <thead>
+                  <tr>
+                    <th>제품</th>
+                    <th>속성</th>
+                    <th>VoC 수</th>
+                    <th>긍/부정 비율</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {vocData.map((row, idx) => {
+                    const isSelected = selectedVocRow &&
+                      selectedVocRow.productId === row.productId &&
+                      selectedVocRow.attributeName === row.attributeName;
+                    return (
+                      <tr
+                        key={idx}
+                        className={`ra-voc-row${isSelected ? ' active' : ''}`}
+                        onClick={() => {
+                          setSelectedVocRow(row);
+                          setVocDetailFilter(null);
+                          loadVocDetail(row, null);
+                        }}
+                      >
+                        <td className="ra-voc-cell-product">
+                          <span className="ra-voc-brand">{row.brandName}</span>
+                          <span className="ra-voc-pname">{row.productName}</span>
+                        </td>
+                        <td className="ra-voc-cell-attr">{row.attributeName}</td>
+                        <td className="ra-voc-cell-count">{row.totalCount}개</td>
+                        <td className="ra-voc-cell-ratio">
+                          <div className="ra-voc-ratio-bar">
+                            <div className="ra-voc-ratio-pos" style={{ width: `${row.positiveRate}%` }} />
+                            <div className="ra-voc-ratio-neu" style={{ width: `${row.neutralRate}%` }} />
+                            <div className="ra-voc-ratio-neg" style={{ width: `${row.negativeRate}%` }} />
+                          </div>
+                          <div className="ra-voc-ratio-labels">
+                            <span className="pos">{row.positiveRate}%</span>
+                            <span className="neg">{row.negativeRate}%</span>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+
+            {/* 오른쪽: 상세 패널 */}
+            <div className="ra-voc-detail-panel glass-panel">
+              {!selectedVocRow ? (
+                <div className="ra-empty-state">왼쪽에서 속성을 선택하세요.</div>
+              ) : (
+                <>
+                  <div className="ra-voc-detail-header">
+                    <h4>{selectedVocRow.productName} — {selectedVocRow.attributeName}</h4>
+                    <div className="ra-voc-detail-keywords">
+                      {[...((selectedVocRow.positive?.keywords || []).slice(0, 3).map(k => ({ ...k, type: 'positive' }))),
+                        ...((selectedVocRow.neutral?.keywords || []).slice(0, 2).map(k => ({ ...k, type: 'neutral' }))),
+                        ...((selectedVocRow.negative?.keywords || []).slice(0, 3).map(k => ({ ...k, type: 'negative' })))
+                      ].map((kw, ki) => (
+                        <span key={ki} className={`ra-voc-keyword ${kw.type}`}>{kw.keyword}</span>
                       ))}
-                      {(!voc.positive?.keywords || voc.positive.keywords.length === 0) && <span className="ra-voc-empty">-</span>}
                     </div>
                   </div>
-                  <div className="ra-voc-section">
-                    <span className="ra-voc-label negative">부정 ({voc.negative?.count || 0})</span>
-                    <div className="ra-voc-keywords">
-                      {(voc.negative?.keywords || []).map((kw, ki) => (
-                        <span key={ki} className="ra-voc-keyword negative">{kw.keyword} ({kw.count})</span>
-                      ))}
-                      {(!voc.negative?.keywords || voc.negative.keywords.length === 0) && <span className="ra-voc-empty">-</span>}
-                    </div>
+                  <div className="ra-filter-bar">
+                    {[
+                      { label: '전체', val: null },
+                      { label: '긍정', val: 'positive' },
+                      { label: '중립', val: 'neutral' },
+                      { label: '부정', val: 'negative' },
+                    ].map(({ label, val }) => (
+                      <button
+                        key={label}
+                        className={`ra-filter-chip ${vocDetailFilter === val ? 'active' : ''}`}
+                        onClick={() => {
+                          setVocDetailFilter(val);
+                          loadVocDetail(selectedVocRow, val);
+                        }}
+                      >
+                        {label}
+                      </button>
+                    ))}
                   </div>
-                </div>
-              </div>
-            ))}
+                  <div className="ra-review-list">
+                    {vocDetailLoading && <div className="ra-empty-state">불러오는 중...</div>}
+                    {!vocDetailLoading && vocDetailReviews.length === 0 && (
+                      <div className="ra-empty-state">리뷰가 없습니다.</div>
+                    )}
+                    {!vocDetailLoading && vocDetailReviews.map((review, ri) => (
+                      <div key={ri} className="ra-review-item glass-panel">
+                        <div className="ra-review-header">
+                          <div className="ra-review-meta-left">
+                            <span className="ra-review-date">{review.reviewDate}</span>
+                            <span className={`ra-sentiment-badge ${review.sentiment}`}>
+                              {review.sentiment === 'positive' ? '긍정' : review.sentiment === 'negative' ? '부정' : '중립'}
+                            </span>
+                            <span className="ra-rating">★ {review.rating}</span>
+                          </div>
+                        </div>
+                        <div className="ra-review-text">
+                          {renderHighlightedText(review.reviewText, review.sourceHighlight || [])}
+                        </div>
+                        <div className="ra-review-tags">
+                          {(review.attributes || []).map((attr, ai) => (
+                            <span key={ai} className={`ra-review-attr-tag ${attr.sentiment}`}>
+                              {attr.name} — {attr.sentiment === 'positive' ? '긍정' : attr.sentiment === 'negative' ? '부정' : '중립'}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </>
+              )}
+            </div>
           </div>
         )}
       </div>
@@ -702,64 +814,64 @@ export default function ReviewAnalysisPage() {
     return (
       <div className="ra-marketing-container">
         {marketingData.products.map((product, idx) => (
-          <div key={idx} className="ra-marketing-product glass-panel">
-            <h3 className="ra-marketing-title">{product.productName}</h3>
-            
-            {/* 불만 VoC 대응 방안 */}
-            <div className="ra-marketing-section">
-              <div className="ra-marketing-section-header negative">
-                <MessageSquare size={18} />
-                <h4>{product.vocResponse?.title || '불만 VoC 대응 방안'}</h4>
-              </div>
-              <ul className="ra-marketing-list">
-                {(product.vocResponse?.actions || []).map((action, ai) => (
-                  <li key={ai}>{action}</li>
-                ))}
-              </ul>
-            </div>
-
-            {/* 마케팅 활용 포인트 */}
-            <div className="ra-marketing-grid">
-              <div className="ra-marketing-block">
-                <h5>💡 캐치프라이즈</h5>
-                <ul>
-                  {(product.marketingPoints?.catchphrase || []).map((cp, ci) => (
-                    <li key={ci} className="ra-catchphrase">"{cp}"</li>
-                  ))}
-                </ul>
-              </div>
-              <div className="ra-marketing-block">
-                <h5>🎯 USP (차별화 포인트)</h5>
-                <ul>
-                  {(product.marketingPoints?.usp || []).map((u, ui) => (
-                    <li key={ui}>{u}</li>
-                  ))}
-                </ul>
-              </div>
-              <div className="ra-marketing-block">
-                <h5>🎬 콘텐츠 제작 아이디어</h5>
-                <ul>
-                  {(product.marketingPoints?.contentIdeas || []).map((c, ci) => (
-                    <li key={ci}>{c}</li>
-                  ))}
-                </ul>
-              </div>
-            </div>
-
-            {/* 개선 제안 */}
-            {product.improvementSuggestions && product.improvementSuggestions.length > 0 && (
-              <div className="ra-marketing-section">
-                <div className="ra-marketing-section-header improve">
-                  <TrendingUp size={18} />
-                  <h4>개선 제안</h4>
+          <div key={idx} className="ra-marketing-product-section">
+            <h3 className="ra-marketing-product-title">{product.productName}</h3>
+            <div className="ra-marketing-two-panel">
+              {/* 왼쪽: VoC 개선 액션플랜 */}
+              <div className="ra-marketing-left glass-panel">
+                <div className="ra-marketing-panel-header">
+                  <MessageSquare size={16} />
+                  <span>VoC 개선 액션플랜</span>
                 </div>
-                <ul className="ra-marketing-list">
-                  {product.improvementSuggestions.map((s, si) => (
-                    <li key={si}>{s}</li>
-                  ))}
-                </ul>
+                <table className="ra-marketing-voc-table">
+                  <thead>
+                    <tr>
+                      <th>VoC 핵심내용</th>
+                      <th>액션플랜</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {(product.vocItems || []).map((item, vi) => (
+                      <tr key={vi}>
+                        <td className="ra-voc-issue">{item.issue}</td>
+                        <td className="ra-voc-action">{item.action}</td>
+                      </tr>
+                    ))}
+                    {(!product.vocItems || product.vocItems.length === 0) && (
+                      <tr><td colSpan={2} className="ra-voc-empty">데이터 없음</td></tr>
+                    )}
+                  </tbody>
+                </table>
               </div>
-            )}
+
+              {/* 오른쪽: 마케팅 활용 Point */}
+              <div className="ra-marketing-right glass-panel">
+                <div className="ra-marketing-panel-header">
+                  <Megaphone size={16} />
+                  <span>마케팅 활용 Point</span>
+                </div>
+                <div className="ra-marketing-points">
+                  {(product.marketingPoints?.catchphrase || []).map((cp, ci) => (
+                    <div key={`cp-${ci}`} className="ra-marketing-point-card">
+                      <span className="ra-mkt-badge catchphrase">키 메시지 / 카피라이트</span>
+                      <p className="ra-mkt-content ra-catchphrase">"{cp}"</p>
+                    </div>
+                  ))}
+                  {(product.marketingPoints?.usp || []).map((u, ui) => (
+                    <div key={`usp-${ui}`} className="ra-marketing-point-card">
+                      <span className="ra-mkt-badge usp">USP</span>
+                      <p className="ra-mkt-content">{u}</p>
+                    </div>
+                  ))}
+                  {(product.marketingPoints?.contentIdeas || []).map((c, ci) => (
+                    <div key={`ci-${ci}`} className="ra-marketing-point-card">
+                      <span className="ra-mkt-badge content">영상 제작 컨티</span>
+                      <p className="ra-mkt-content">{c}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
           </div>
         ))}
       </div>

@@ -1,0 +1,156 @@
+/* TISLO AI Sommelier Styles */
+.tsl-sommelier-container {
+    --tsl-text-main: #222222;
+    --tsl-text-sub: #666666;
+    --tsl-border: #e5e5e5;
+    --tsl-primary: #6B6256; 
+    --tsl-bg-light: #fbfbfb;
+    
+    font-family: 'Pretendard', 'Noto Sans KR', sans-serif;
+    color: var(--tsl-text-main);
+    word-break: keep-all;
+    line-height: 1.6;
+    background: #ffffff;
+    min-height: 100vh;
+    padding: 40px 20px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
+.tsl-ai-header {
+    text-align: center;
+    margin-bottom: 40px;
+    max-width: 600px;
+}
+
+.tsl-ai-header h3 {
+    font-size: 24px;
+    font-family: serif;
+    margin: 0 0 15px;
+    color: var(--tsl-text-main);
+}
+
+.tsl-ai-header p {
+    font-size: 15px;
+    color: var(--tsl-text-sub);
+    line-height: 1.8;
+}
+
+.tsl-ai-body {
+    width: 100%;
+    max-width: 600px;
+    background: #fff;
+    padding: 0;
+}
+
+.tsl-ai-body textarea {
+    width: 100%;
+    height: 120px;
+    padding: 16px;
+    border: 1px solid var(--tsl-border);
+    border-radius: 8px;
+    font-family: inherit;
+    font-size: 16px;
+    resize: none;
+    margin-bottom: 20px;
+    outline: none;
+    transition: border-color 0.3s;
+}
+
+.tsl-ai-body textarea:focus {
+    border-color: var(--tsl-primary);
+}
+
+.tsl-btn-recommend {
+    width: 100%;
+    padding: 18px;
+    background-color: var(--tsl-text-main);
+    color: #fff;
+    border: none;
+    border-radius: 8px;
+    font-size: 16px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background-color 0.3s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+}
+
+.tsl-btn-recommend:hover {
+    background-color: var(--tsl-primary);
+}
+
+.tsl-btn-recommend:disabled {
+    background-color: #ccc;
+    cursor: not-allowed;
+}
+
+.tsl-ai-loading {
+    text-align: center;
+    padding: 40px 0;
+}
+
+.tsl-spinner {
+    width: 40px;
+    height: 40px;
+    border: 3px solid #f3f3f3;
+    border-top: 3px solid var(--tsl-primary);
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+    margin: 0 auto 20px;
+}
+
+@keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+
+.tsl-ai-result {
+    margin-top: 30px;
+    padding: 30px;
+    background: var(--tsl-bg-light);
+    border-radius: 12px;
+    font-size: 15px;
+    line-height: 1.8;
+    color: var(--tsl-text-main);
+    white-space: pre-wrap;
+    animation: fadeIn 0.5s ease;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+/* 추천 결과 내 버튼 스타일 */
+.tsl-btn-view {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 12px 24px;
+    background-color: var(--tsl-primary);
+    color: #ffffff !important;
+    text-decoration: none;
+    font-size: 14px;
+    font-weight: 500;
+    border-radius: 4px;
+    margin-top: 15px;
+    margin-right: 10px;
+    transition: opacity 0.3s;
+}
+
+.tsl-btn-view:hover {
+    opacity: 0.9;
+}
+
+@media (max-width: 768px) {
+    .tsl-sommelier-container {
+        padding: 30px 15px;
+    }
+    .tsl-ai-header h3 {
+        font-size: 22px;
+    }
+    .tsl-ai-result {
+        padding: 20px;
+    }
+}
