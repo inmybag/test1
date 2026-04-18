@@ -7,7 +7,6 @@ import { Chart as ChartJS, CategoryScale, LinearScale, PointElement, LineElement
 import { Line, Bar } from 'react-chartjs-2';
 import ProductUrlManager from './ProductUrlManager';
 
-const ReactWordcloud = dynamic(() => import('react-wordcloud'), { ssr: false });
 
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, BarElement, Title, Tooltip, Legend, Filler);
 
@@ -1056,27 +1055,36 @@ export default function ReviewAnalysisPage() {
           </div>
           <div className="ra-modal-body" style={{ padding: '1.5rem' }}>
             {safeWords.length > 0 ? (
-              <div style={{ width: '100%', height: 400 }}>
-                <ReactWordcloud
-                  words={safeWords}
-                  options={{
-                    rotations: 2,
-                    rotationAngles: [-90, 0],
-                    colors: CHART_COLORS,
-                    enableTooltip: true,
-                    deterministic: false,
-                    fontFamily: 'sans-serif',
-                    fontSizes: [16, 60]
-                  }}
-                  callbacks={{
-                    onWordClick: (word) => {
-                      setShowWordCloudModal(false);
-                      setTimeout(() => {
-                        openReviewModal(word.text, wordCloudPid ? [wordCloudPid] : selectedProducts, word.text, null);
-                      }, 0);
-                    },
-                  }}
-                />
+              <div style={{ width: '100%', height: 400, display: 'flex', flexWrap: 'wrap', justifyContent: 'center', alignContent: 'center', gap: '15px', overflow: 'hidden' }}>
+                {safeWords.sort(() => Math.random() - 0.5).map((w, i) => {
+                  const maxVal = Math.max(...safeWords.map(sw => sw.value));
+                  const minVal = Math.min(...safeWords.map(sw => sw.value));
+                  const size = maxVal === minVal ? 24 : 14 + ((w.value - minVal) / (maxVal - minVal)) * 46;
+                  const isRotated = Math.random() > 0.7; // 30% chance to rotate text
+                  return (
+                    <span
+                      key={i}
+                      onClick={() => {
+                        setShowWordCloudModal(false);
+                        setTimeout(() => openReviewModal(w.text, wordCloudPid ? [wordCloudPid] : selectedProducts, w.text, null), 0);
+                      }}
+                      style={{
+                        fontSize: `${size}px`,
+                        fontWeight: 'bold',
+                        color: CHART_COLORS[i % CHART_COLORS.length],
+                        cursor: 'pointer',
+                        transform: isRotated ? 'scale(1.1) rotate(-5deg)' : 'none',
+                        transition: 'transform 0.1s',
+                        display: 'inline-block',
+                        lineHeight: 1
+                      }}
+                      onMouseEnter={e => e.target.style.transform = isRotated ? 'scale(1.2) rotate(-5deg)' : 'scale(1.1)'}
+                      onMouseLeave={e => e.target.style.transform = isRotated ? 'scale(1.1) rotate(-5deg)' : 'none'}
+                    >
+                      {w.text}
+                    </span>
+                  );
+                })}
               </div>
             ) : <div className="ra-empty-state">데이터가 없습니다.</div>}
           </div>
