@@ -28,7 +28,7 @@ export async function POST(req) {
 10. MU 666 (프리지아, 비누향, 포근한 머스크) - 링크: https://www.tislo.co.kr/category/freesia/59
 11. MU 377 (아이리스, 머스크, 나른함) - 링크: https://www.tislo.co.kr/category/musk/58
 12. GR 743 (로즈마리, 풀향, 라벤더, 평온함) - 링크: https://www.tislo.co.kr/category/rosemary/149
-13. FL 365 (미모사, 생화향, 포근함) - 링크: https://www.tislo.co.kr/category/hello-mimosa%F0%9F%92%9B/164/ (특징: 햇살을 머금은 미모사의 보송하고 싱그러운 생화 향, 머스크의 포근하고 깊이 있는 여운)`;
+13. FL 365 (미모사, 생화향, 포근함) - 링크: https://www.tislo.co.kr/category/hello-mimosa%F0%9F%92%9B/164/ (특징: 햇살을 머금은 미모사의 보송하고 싱그러운 생화 향, 머스크의 포근하고 깊이 있는 여운)
 
 [중요 지시사항]
 1. 답변은 HTML 태그를 포함하지 않은 마크다운 형식으로 작성해도 되지만, 볼드 처리는 **텍스트** 또는 <strong>텍스트</strong> 형식을 사용하세요.
