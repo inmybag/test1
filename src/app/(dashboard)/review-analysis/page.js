@@ -1044,8 +1044,8 @@ export default function ReviewAnalysisPage() {
     if (!showWordCloudModal) return null;
     const options = {
       colors: CHART_COLORS, enableTooltip: true, deterministic: true,
-      fontFamily: 'sans-serif', fontSizes: [14, 60], fontWeight: 'bold',
-      padding: 4, rotations: 1, rotationAngles: [0, 0],
+      fontFamily: 'sans-serif', fontSizes: [15, 60], fontWeight: 'bold',
+      padding: 4, rotations: 2, rotationAngles: [0, 0],
       scale: 'sqrt', spiral: 'archimedean', transitionDuration: 500,
     };
     const safeWords = (wordCloudData || [])
