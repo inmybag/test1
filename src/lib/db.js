@@ -544,8 +544,9 @@ export async function getReviewsWithDetails(productIds, startDate, endDate, sent
       params.push(sentiment);
     }
     if (attribute) {
-      query += ` AND pr.attributes @> $${paramIdx++}::jsonb`;
-      params.push(JSON.stringify([{ name: attribute }]));
+      const attrList = attribute.split(',');
+      query += ` AND EXISTS (SELECT 1 FROM jsonb_array_elements(pr.attributes) as attr WHERE attr->>'name' = ANY($${paramIdx++}::text[]))`;
+      params.push(attrList);
     }
     
     // 페이지네이션 적용 (10건씩)
