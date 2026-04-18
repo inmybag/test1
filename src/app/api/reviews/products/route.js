@@ -1,0 +1,78 @@
+import { NextResponse } from 'next/server';
+import { addReviewProduct, deleteReviewProduct, getReviewProducts, initDb } from '@/lib/db';
+import { spawn } from 'child_process';
+
+// 플랫폼 자동 감지
+function detectPlatform(url) {
+  if (url.includes('oliveyoung.co.kr')) return 'oliveyoung';
+  if (url.includes('smartstore.naver.com') || url.includes('brand.naver.com') || url.includes('shopping.naver.com')) return 'naver';
+  // 카페24는 다양한 도메인 가능
+  return 'cafe24';
+}
+
+export async function GET() {
+  try {
+    await initDb();
+    const products = await getReviewProducts();
+    return NextResponse.json({ data: products });
+  } catch (error) {
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+}
+
+export async function POST(request) {
+  try {
+    await initDb();
+    const body = await request.json();
+    const { pageUrl, brandName, productName, thumbnailUrl, secretKey } = body;
+    
+    if (secretKey !== 'youngje') {
+      return NextResponse.json({ error: '인증 코드가 올바르지 않습니다.' }, { status: 401 });
+    }
+    
+    if (!pageUrl || !brandName || !productName) {
+      return NextResponse.json({ error: '필수 필드가 누락되었습니다.' }, { status: 400 });
+    }
+
+    const platform = detectPlatform(pageUrl);
+    const result = await addReviewProduct(platform, pageUrl, brandName, productName, thumbnailUrl || null);
+    
+    if (result) {
+      // 백그라운드로 30일치 데이터 수집 크롤러 실행
+      try {
+        const child = spawn('node', ['scripts/crawl-reviews-backfill.js', String(result.id)], {
+          cwd: process.cwd(),
+          detached: true,
+          stdio: 'ignore'
+        });
+        child.unref(); // 백그라운드 분리
+      } catch (e) {
+        console.error('크롤러 백그라운드 실행 오류:', e);
+      }
+      return NextResponse.json({ data: result, message: '제품이 등록되었습니다. 리뷰 수집을 시작합니다.' });
+    }
+    return NextResponse.json({ error: '등록에 실패했습니다.' }, { status: 500 });
+  } catch (error) {
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+}
+
+export async function DELETE(request) {
+  try {
+    await initDb();
+    const { searchParams } = new URL(request.url);
+    const id = parseInt(searchParams.get('id'));
+    
+    if (!id) {
+      return NextResponse.json({ error: 'ID가 필요합니다.' }, { status: 400 });
+    }
+
+    const result = await deleteReviewProduct(id);
+    if (result) {
+      return NextResponse.json({ message: '제품 및 관련 리뷰가 삭제되었습니다.' });
+    }
+    return NextResponse.json({ error: '삭제에 실패했습니다.' }, { status: 500 });
+  } catch (error) {
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+}

@@ -33,5 +33,10 @@ python3 scripts/fetch_trending.py >> $LOG_FILE 2>&1
 echo "[$(date)] 3단계: AI 인사이트 분석 시작 (analyze-videos.js)..." >> $LOG_FILE
 /usr/local/bin/node scripts/analyze-videos.js >> $LOG_FILE 2>&1
 
+# 4단계: 제품 리뷰 수집 및 감성 분석
+echo "[$(date)] 4단계: 제품 리뷰 크롤링 및 AI 감성분석 시작 (crawl-reviews.js)..." >> $LOG_FILE
+/usr/local/bin/node scripts/crawl-reviews.js >> $LOG_FILE 2>&1
+
 echo "[$(date)] --- 종료: 전체 분석 완료 ---" >> $LOG_FILE
 echo "" >> $LOG_FILE
+

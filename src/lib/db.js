@@ -55,6 +55,44 @@ export async function initDb() {
     await sql`ALTER TABLE video_analyses ADD COLUMN IF NOT EXISTS comments JSONB DEFAULT '[]';`;
     await sql`ALTER TABLE video_analyses ADD COLUMN IF NOT EXISTS notion_url TEXT;`;
     await sql`ALTER TABLE video_analyses ADD COLUMN IF NOT EXISTS is_sent_to_notion BOOLEAN DEFAULT FALSE;`;
+
+    // 리뷰 분석용 테이블
+    await sql`
+      CREATE TABLE IF NOT EXISTS review_products (
+        id SERIAL PRIMARY KEY,
+        platform TEXT NOT NULL,
+        page_url TEXT NOT NULL UNIQUE,
+        brand_name TEXT NOT NULL,
+        product_name TEXT NOT NULL,
+        thumbnail_url TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        is_active BOOLEAN DEFAULT TRUE
+      );
+    `;
+
+    await sql`
+      CREATE TABLE IF NOT EXISTS product_reviews (
+        id SERIAL PRIMARY KEY,
+        product_id INTEGER REFERENCES review_products(id) ON DELETE CASCADE,
+        review_date TEXT NOT NULL,
+        rating REAL,
+        review_text TEXT,
+        reviewer_nickname TEXT,
+        extra_info JSONB DEFAULT '{}',
+        media_urls JSONB DEFAULT '[]',
+        sentiment TEXT,
+        sentiment_score REAL,
+        attributes JSONB DEFAULT '[]',
+        source_highlight JSONB DEFAULT '[]',
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+    `;
+
+    // product_reviews에 unique 인덱스 추가 (중복 방지)
+    await sql`
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_review_unique 
+      ON product_reviews(product_id, review_date, COALESCE(reviewer_nickname, ''), LEFT(COALESCE(review_text, ''), 100));
+    `;
     
     console.log('Database initialized and migrated successfully.');
   } catch (error) {
@@ -309,5 +347,255 @@ export async function updateVideoNotionUrl(videoId, dateStr, notionUrl) {
   } catch (error) {
     console.error('Update notion url error:', error);
     return false;
+  }
+}
+
+// =============================================
+// 리뷰 분석 관련 함수들
+// =============================================
+
+export async function addReviewProduct(platform, pageUrl, brandName, productName, thumbnailUrl = null) {
+  if (!isProd) {
+    global.reviewProductsDb = global.reviewProductsDb || [];
+    const id = global.reviewProductsDb.length + 1;
+    global.reviewProductsDb.push({ id, platform, page_url: pageUrl, brand_name: brandName, product_name: productName, thumbnail_url: thumbnailUrl, is_active: true, created_at: new Date().toISOString() });
+    return { id };
+  }
+  try {
+    const { rows } = await sql`
+      INSERT INTO review_products (platform, page_url, brand_name, product_name, thumbnail_url)
+      VALUES (${platform}, ${pageUrl}, ${brandName}, ${productName}, ${thumbnailUrl})
+      ON CONFLICT (page_url) DO UPDATE SET
+        brand_name = EXCLUDED.brand_name,
+        product_name = EXCLUDED.product_name,
+        thumbnail_url = COALESCE(EXCLUDED.thumbnail_url, review_products.thumbnail_url)
+      RETURNING id;
+    `;
+    return rows[0];
+  } catch (error) {
+    console.error('Add review product error:', error);
+    return null;
+  }
+}
+
+export async function deleteReviewProduct(id) {
+  if (!isProd) {
+    global.reviewProductsDb = (global.reviewProductsDb || []).filter(p => p.id !== id);
+    global.productReviewsDb = (global.productReviewsDb || []).filter(r => r.product_id !== id);
+    return true;
+  }
+  try {
+    await sql`DELETE FROM review_products WHERE id = ${id};`;
+    return true;
+  } catch (error) {
+    console.error('Delete review product error:', error);
+    return false;
+  }
+}
+
+export async function getReviewProducts() {
+  if (!isProd) {
+    return global.reviewProductsDb || [];
+  }
+  try {
+    const { rows } = await sql`
+      SELECT id, platform, page_url as "pageUrl", brand_name as "brandName", 
+             product_name as "productName", thumbnail_url as "thumbnailUrl",
+             created_at as "createdAt", is_active as "isActive"
+      FROM review_products 
+      WHERE is_active = TRUE
+      ORDER BY created_at DESC;
+    `;
+    return rows;
+  } catch (error) {
+    console.error('Get review products error:', error);
+    return [];
+  }
+}
+
+export async function saveProductReviews(reviews) {
+  if (!isProd) {
+    global.productReviewsDb = global.productReviewsDb || [];
+    for (const r of reviews) {
+      const exists = global.productReviewsDb.find(
+        e => e.product_id === r.product_id && e.review_date === r.review_date && e.reviewer_nickname === r.reviewer_nickname
+      );
+      if (!exists) global.productReviewsDb.push({ id: global.productReviewsDb.length + 1, ...r, created_at: new Date().toISOString() });
+    }
+    return true;
+  }
+  try {
+    for (const r of reviews) {
+      await sql`
+        INSERT INTO product_reviews (
+          product_id, review_date, rating, review_text, reviewer_nickname,
+          extra_info, media_urls, sentiment, sentiment_score, attributes, source_highlight
+        )
+        VALUES (
+          ${r.product_id}, ${r.review_date}, ${r.rating}, ${r.review_text}, ${r.reviewer_nickname},
+          ${JSON.stringify(r.extra_info || {})}, ${JSON.stringify(r.media_urls || [])},
+          ${r.sentiment}, ${r.sentiment_score}, ${JSON.stringify(r.attributes || [])},
+          ${JSON.stringify(r.source_highlight || [])}
+        )
+        ON CONFLICT ON CONSTRAINT idx_review_unique DO NOTHING;
+      `;
+    }
+    return true;
+  } catch (error) {
+    console.error('Save product reviews error:', error);
+    return false;
+  }
+}
+
+export async function getReviewDashboard(productIds, startDate, endDate) {
+  if (!isProd) return [];
+  try {
+    const ids = productIds.join(',');
+    const { rows } = await sql.query(`
+      SELECT 
+        rp.id as "productId",
+        rp.brand_name as "brandName",
+        rp.product_name as "productName",
+        rp.thumbnail_url as "thumbnailUrl",
+        COUNT(pr.id) as "totalReviews",
+        COUNT(CASE WHEN pr.sentiment = 'positive' THEN 1 END) as "positiveCount",
+        COUNT(CASE WHEN pr.sentiment = 'negative' THEN 1 END) as "negativeCount",
+        COUNT(CASE WHEN pr.sentiment = 'neutral' THEN 1 END) as "neutralCount",
+        ROUND(AVG(pr.rating)::numeric, 1) as "avgRating"
+      FROM review_products rp
+      LEFT JOIN product_reviews pr ON rp.id = pr.product_id 
+        AND pr.review_date >= $1 AND pr.review_date <= $2
+      WHERE rp.id = ANY($3::int[])
+      GROUP BY rp.id, rp.brand_name, rp.product_name, rp.thumbnail_url
+    `, [startDate, endDate, productIds]);
+    return rows;
+  } catch (error) {
+    console.error('Get review dashboard error:', error);
+    return [];
+  }
+}
+
+export async function getReviewsByPeriod(productIds, startDate, endDate) {
+  if (!isProd) return [];
+  try {
+    const { rows } = await sql.query(`
+      SELECT 
+        pr.review_date as "reviewDate",
+        rp.id as "productId",
+        rp.product_name as "productName",
+        COUNT(pr.id) as "count",
+        COUNT(CASE WHEN pr.sentiment = 'positive' THEN 1 END) as "positiveCount",
+        COUNT(CASE WHEN pr.sentiment = 'negative' THEN 1 END) as "negativeCount",
+        COUNT(CASE WHEN pr.sentiment = 'neutral' THEN 1 END) as "neutralCount"
+      FROM product_reviews pr
+      JOIN review_products rp ON rp.id = pr.product_id
+      WHERE rp.id = ANY($1::int[]) AND pr.review_date >= $2 AND pr.review_date <= $3
+      GROUP BY pr.review_date, rp.id, rp.product_name
+      ORDER BY pr.review_date ASC
+    `, [productIds, startDate, endDate]);
+    return rows;
+  } catch (error) {
+    console.error('Get reviews by period error:', error);
+    return [];
+  }
+}
+
+export async function getReviewsWithDetails(productIds, startDate, endDate, sentiment = null, attribute = null, page = 1) {
+  if (!isProd) return [];
+  try {
+    let query = `
+      SELECT 
+        pr.id, pr.review_date as "reviewDate", pr.rating, pr.review_text as "reviewText",
+        pr.reviewer_nickname as "reviewerNickname", pr.extra_info as "extraInfo",
+        pr.media_urls as "mediaUrls", pr.sentiment, pr.sentiment_score as "sentimentScore",
+        pr.attributes, pr.source_highlight as "sourceHighlight",
+        rp.id as "productId", rp.product_name as "productName", rp.brand_name as "brandName", rp.platform as "platform"
+      FROM product_reviews pr
+      JOIN review_products rp ON rp.id = pr.product_id
+      WHERE rp.id = ANY($1::int[]) AND pr.review_date >= $2 AND pr.review_date <= $3
+    `;
+    const params = [productIds, startDate, endDate];
+    let paramIdx = 4;
+
+    if (sentiment) {
+      query += ` AND pr.sentiment = $${paramIdx++}`;
+      params.push(sentiment);
+    }
+    if (attribute) {
+      query += ` AND pr.attributes @> $${paramIdx++}::jsonb`;
+      params.push(JSON.stringify([{ name: attribute }]));
+    }
+    
+    // 페이지네이션 적용 (10건씩)
+    const limit = 10;
+    const offset = (page - 1) * limit;
+    query += ` ORDER BY pr.review_date DESC LIMIT $${paramIdx++} OFFSET $${paramIdx++}`;
+    params.push(limit, offset);
+
+    const { rows } = await sql.query(query, params);
+    return rows;
+  } catch (error) {
+    console.error('Get reviews with details error:', error);
+    return [];
+  }
+}
+
+export async function getAttributeStats(productIds, startDate, endDate) {
+  if (!isProd) return [];
+  try {
+    const { rows } = await sql.query(`
+      SELECT 
+        attr->>'name' as "attributeName",
+        attr->>'sentiment' as "sentiment",
+        COUNT(*) as "count"
+      FROM product_reviews pr,
+        jsonb_array_elements(pr.attributes) as attr
+      JOIN review_products rp ON rp.id = pr.product_id
+      WHERE rp.id = ANY($1::int[]) AND pr.review_date >= $2 AND pr.review_date <= $3
+      GROUP BY attr->>'name', attr->>'sentiment'
+      ORDER BY "count" DESC
+    `, [productIds, startDate, endDate]);
+    return rows;
+  } catch (error) {
+    console.error('Get attribute stats error:', error);
+    return [];
+  }
+}
+
+export async function getTopAttributes(productIds, startDate, endDate) {
+  if (!isProd) return { positive: [], negative: [] };
+  try {
+    const { rows: positive } = await sql.query(`
+      SELECT 
+        attr->>'name' as "name",
+        COUNT(*) as "count"
+      FROM product_reviews pr,
+        jsonb_array_elements(pr.attributes) as attr
+      JOIN review_products rp ON rp.id = pr.product_id
+      WHERE rp.id = ANY($1::int[]) AND pr.review_date >= $2 AND pr.review_date <= $3
+        AND attr->>'sentiment' = 'positive'
+      GROUP BY attr->>'name'
+      ORDER BY "count" DESC
+      LIMIT 5
+    `, [productIds, startDate, endDate]);
+
+    const { rows: negative } = await sql.query(`
+      SELECT 
+        attr->>'name' as "name",
+        COUNT(*) as "count"
+      FROM product_reviews pr,
+        jsonb_array_elements(pr.attributes) as attr
+      JOIN review_products rp ON rp.id = pr.product_id
+      WHERE rp.id = ANY($1::int[]) AND pr.review_date >= $2 AND pr.review_date <= $3
+        AND attr->>'sentiment' = 'negative'
+      GROUP BY attr->>'name'
+      ORDER BY "count" DESC
+      LIMIT 5
+    `, [productIds, startDate, endDate]);
+
+    return { positive, negative };
+  } catch (error) {
+    console.error('Get top attributes error:', error);
+    return { positive: [], negative: [] };
   }
 }

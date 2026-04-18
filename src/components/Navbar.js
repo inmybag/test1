@@ -11,6 +11,7 @@ export default function Navbar() {
     { title: '올리브영 랭킹', href: '/' },
     { title: '영상분석', href: '/analysis' },
     { title: '네이버 인기검색어', href: '/naver-shopping' },
+    { title: '리뷰 분석', href: '/review-analysis' },
   ];
 
   return (
