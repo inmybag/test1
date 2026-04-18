@@ -209,9 +209,10 @@ export default function ReviewAnalysisPage() {
                     <span className="ra-dash-brand">{item.brandName}</span>
                     <h4>{item.productName}</h4>
                     {(() => {
-                      const p = products.find(prod => prod.id === item.productId);
-                      if (p && p.page_url) {
-                         return <a href={p.page_url} target="_blank" className="ra-external-link" rel="noreferrer">상품 상세 보기 ↗</a>;
+                      const p = products.find(prod => String(prod.id) === String(item.productId));
+                      const link = p?.pageUrl || p?.page_url;
+                      if (link) {
+                         return <a href={link} target="_blank" className="ra-external-link" rel="noreferrer">상품 상세 보기 ↗</a>;
                       }
                       return null;
                     })()}

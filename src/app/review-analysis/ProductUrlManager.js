@@ -98,7 +98,7 @@ export default function ProductUrlManager({ isOpen, onClose, products, onRefresh
               <label>브랜드명</label>
               <input
                 type="text"
-                placeholder="예: 토니모리"
+                placeholder="예: 에이지투웨니스"
                 value={brandName}
                 onChange={(e) => setBrandName(e.target.value)}
                 required
@@ -108,7 +108,7 @@ export default function ProductUrlManager({ isOpen, onClose, products, onRefresh
               <label>상품명</label>
               <input
                 type="text"
-                placeholder="예: 모찌토너"
+                placeholder="예: 포어 스케일링 엔자임 클렌징 파우더 60g"
                 value={productName}
                 onChange={(e) => setProductName(e.target.value)}
                 required
