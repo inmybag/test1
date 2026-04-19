@@ -135,12 +135,6 @@ export default function ReviewAnalysisPage() {
     return () => document.removeEventListener('mousedown', handler);
   }, []);
 
-  // 제품/날짜 변경 시 마케팅 리포트 초기화 (재생성 필요)
-  useEffect(() => {
-    setMarketingData(null);
-    setMarketingOverrides({});
-  }, [selectedProducts.join(','), startDate, endDate]); // eslint-disable-line react-hooks/exhaustive-deps
-
   // 탭 전환 / 제품 / 날짜 변경 → 전체 데이터 재조회
   useEffect(() => {
     if (selectedProducts.length > 0 && startDate && endDate) {
@@ -311,7 +305,10 @@ export default function ReviewAnalysisPage() {
             setDashAndRef(freshDash);
           }
           if (opts.force && opts.productId) {
-            const url = `${base}/marketing?productIds=${opts.productId}&startDate=${startDate}&endDate=${endDate}&force=true`;
+            // 재생성 시 전체 누적 데이터 기준 (기간 필터 무시)
+            const allStart = '2020-01-01';
+            const allEnd = new Date().toISOString().slice(0, 10);
+            const url = `${base}/marketing?productIds=${opts.productId}&startDate=${allStart}&endDate=${allEnd}&force=true`;
             const res = await fetch(url);
             const json = await res.json();
             const prod = json.data?.products?.[0];
