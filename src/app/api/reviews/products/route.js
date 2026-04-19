@@ -40,12 +40,19 @@ export async function POST(request) {
     if (result) {
       // 백그라운드로 30일치 데이터 수집 크롤러 실행
       try {
-        const child = spawn('node', ['scripts/crawl-reviews-backfill.js', String(result.id)], {
-          cwd: process.cwd(),
-          detached: true,
-          stdio: 'ignore'
-        });
-        child.unref(); // 백그라운드 분리
+        const logPath = `${process.cwd()}/scripts/backfill_${result.id}.log`;
+        const child = spawn(
+          process.execPath, // 'node' 대신 현재 실행 중인 Node 바이너리 절대경로 사용
+          ['scripts/crawl-reviews-backfill.js', String(result.id)],
+          {
+            cwd: process.cwd(),
+            detached: true,
+            stdio: ['ignore', require('fs').openSync(logPath, 'a'), require('fs').openSync(logPath, 'a')],
+            env: process.env, // 현재 환경변수 그대로 전달 (.env.local 포함)
+          }
+        );
+        child.unref();
+        console.log(`[백필] 제품 ${result.id} 크롤러 시작 (PID: ${child.pid}), 로그: ${logPath}`);
       } catch (e) {
         console.error('크롤러 백그라운드 실행 오류:', e);
       }
