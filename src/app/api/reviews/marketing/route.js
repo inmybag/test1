@@ -9,60 +9,63 @@ export async function GET(request) {
     await initDb();
     const { searchParams } = new URL(request.url);
     const productIdsStr = searchParams.get('productIds');
-    const startDate = searchParams.get('startDate');
-    const endDate = searchParams.get('endDate');
 
-    if (!productIdsStr || !startDate || !endDate) {
+    if (!productIdsStr) {
       return NextResponse.json({ error: '필수 파라미터가 누락되었습니다.' }, { status: 400 });
     }
 
     const productIds = productIdsStr.split(',').map(Number);
     const force = searchParams.get('force') === 'true';
+    // force=true 시 특정 pid만 재생성 (나머지는 캐시 유지)
+    const forcePid = searchParams.get('forcePid') ? Number(searchParams.get('forcePid')) : null;
 
-    // 캐시 키: 정렬된 productIds + 기간
-    const reportKey = [...productIds].sort().join(',') + `|${startDate}|${endDate}`;
+    // 항상 전체 누적 데이터 기준 (날짜 필터 무시)
+    const allStart = '2020-01-01';
+    const allEnd = new Date().toISOString().slice(0, 10);
 
-    // 제품별 대시보드 요약 (캐시에도 productId 보강이 필요하므로 항상 먼저 조회)
-    const dashboard = await getReviewDashboard(productIds, startDate, endDate);
+    // 각 제품별 캐시 확인 (캐시 키 = String(productId))
+    const cachedByPid = {};
+    const toGenerateIds = [];
 
-    // 캐시 조회 (force=true 이면 스킵)
-    if (!force) {
-      const cached = await getMarketingReport(reportKey);
-      if (cached) {
-        const cachedData = cached.report_data;
-        // productId 없는 항목 보강 (이전 캐시 또는 AI가 누락한 경우)
-        if (cachedData?.products?.length > 0) {
-          cachedData.products = cachedData.products.map((p, i) => {
-            if (p.productId) return p;
-            const d = dashboard.find(d => d.productName?.trim() === p.productName?.trim()) || dashboard[i];
-            return { ...p, productId: d?.productId ?? null };
-          });
+    for (const pid of productIds) {
+      const shouldForce = force && (!forcePid || forcePid === pid);
+      if (!shouldForce) {
+        const cached = await getMarketingReport(String(pid));
+        if (cached) {
+          const data = typeof cached.report_data === 'object' ? cached.report_data : {};
+          cachedByPid[pid] = { ...data, productId: pid, updatedAt: cached.updated_at, cached: true };
+          continue;
         }
-        return NextResponse.json({ data: cachedData, cached: true, updatedAt: cached.updated_at });
       }
+      toGenerateIds.push(pid);
     }
 
-    // 제품 × 속성 VoC 데이터 (긍/부정 키워드 포함)
-    const attrStats = await getAttributeStatsByProduct(productIds, startDate, endDate);
+    // 생성이 필요한 제품이 없으면 캐시 결과만 반환
+    if (toGenerateIds.length === 0) {
+      const products = productIds.map(pid => cachedByPid[pid] || { productId: pid });
+      return NextResponse.json({ data: { products } });
+    }
 
-    // 제품별 속성 맵 구성
+    // 생성 필요한 제품만 데이터 수집
+    const dashboard = await getReviewDashboard(toGenerateIds, allStart, allEnd);
+    const attrStats = await getAttributeStatsByProduct(toGenerateIds, allStart, allEnd);
+
+    // 제품별 속성 맵
     const attrByProduct = {};
     attrStats.forEach(stat => {
       const pid = String(stat.productId);
       if (!attrByProduct[pid]) attrByProduct[pid] = {};
       const attr = stat.attributeName;
-      if (!attrByProduct[pid][attr]) {
-        attrByProduct[pid][attr] = { positive: 0, negative: 0, neutral: 0 };
-      }
+      if (!attrByProduct[pid][attr]) attrByProduct[pid][attr] = { positive: 0, negative: 0, neutral: 0 };
       attrByProduct[pid][attr][stat.sentiment] = parseInt(stat.count);
     });
 
-    // 제품별 부정 리뷰 샘플 (최대 5건)
+    // 제품별 리뷰 샘플 (최대 5건)
     const negSampleByProduct = {};
     const posSampleByProduct = {};
-    for (const pid of productIds) {
-      const negRevs = await getReviewsWithDetails([pid], startDate, endDate, 'negative', null, 1);
-      const posRevs = await getReviewsWithDetails([pid], startDate, endDate, 'positive', null, 1);
+    for (const pid of toGenerateIds) {
+      const negRevs = await getReviewsWithDetails([pid], allStart, allEnd, 'negative', null, 1);
+      const posRevs = await getReviewsWithDetails([pid], allStart, allEnd, 'positive', null, 1);
       negSampleByProduct[pid] = negRevs.slice(0, 5).map(r => r.reviewText?.slice(0, 150)).filter(Boolean);
       posSampleByProduct[pid] = posRevs.slice(0, 5).map(r => r.reviewText?.slice(0, 150)).filter(Boolean);
     }
@@ -75,7 +78,6 @@ export async function GET(request) {
       const pos = parseInt(d.positiveCount) || 0;
       const neg = parseInt(d.negativeCount) || 0;
 
-      // 속성별 긍/부정 정리
       const attrLines = Object.entries(attrs)
         .map(([name, counts]) => {
           const t = counts.positive + counts.negative + counts.neutral;
@@ -155,31 +157,39 @@ ${productSummaries}
     let text = result.response.text().trim()
       .replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
 
-    let marketingData;
+    let generatedData;
     try {
-      marketingData = JSON.parse(text);
+      generatedData = JSON.parse(text);
     } catch (e) {
-      // JSON 블록만 추출 시도
       const match = text.match(/\{[\s\S]*\}/);
       if (match) {
-        try { marketingData = JSON.parse(match[0]); }
-        catch { marketingData = { products: [] }; }
+        try { generatedData = JSON.parse(match[0]); }
+        catch { generatedData = { products: [] }; }
       } else {
-        marketingData = { products: [] };
+        generatedData = { products: [] };
       }
     }
 
-    // productId 보강 (dashboard 데이터에서 매핑)
-    if (marketingData?.products?.length > 0) {
-      marketingData.products = marketingData.products.map(p => {
-        const d = dashboard.find(d => d.productName === p.productName);
-        return { ...p, productId: d?.productId ?? null };
-      });
-      await saveMarketingReport(reportKey, productIdsStr, startDate, endDate, marketingData);
+    // productId 보강 및 제품별 독립 캐시 저장
+    const now = new Date().toISOString();
+    const generatedByPid = {};
+    if (generatedData?.products?.length > 0) {
+      for (const p of generatedData.products) {
+        const d = dashboard.find(d => d.productName?.trim() === p.productName?.trim() && d.brandName?.trim() === p.brandName?.trim())
+          || dashboard.find(d => d.productName?.trim() === p.productName?.trim())
+          || dashboard.find(d => d.brandName?.trim() === p.brandName?.trim());
+        const pid = d?.productId ?? null;
+        if (pid) {
+          const enriched = { ...p, productId: pid };
+          generatedByPid[pid] = { ...enriched, updatedAt: now, cached: false };
+          await saveMarketingReport(String(pid), String(pid), allStart, allEnd, enriched);
+        }
+      }
     }
 
-    const now = new Date().toISOString();
-    return NextResponse.json({ data: marketingData, cached: false, updatedAt: now });
+    // 캐시 + 생성 결과 합쳐서 반환
+    const products = productIds.map(pid => cachedByPid[pid] || generatedByPid[pid] || { productId: pid, updatedAt: now, cached: false });
+    return NextResponse.json({ data: { products } });
   } catch (error) {
     console.error('Marketing analysis error:', error);
     return NextResponse.json({ error: error.message }, { status: 500 });

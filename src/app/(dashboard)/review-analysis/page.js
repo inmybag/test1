@@ -43,9 +43,8 @@ export default function ReviewAnalysisPage() {
   const setDashAndRef = (data) => { dashboardDataRef.current = data; setDashboardData(data); };
   const [periodData, setPeriodData] = useState({ periodData: [], reviews: [] });
   const [vocData, setVocData] = useState([]);
-  const [marketingData, setMarketingData] = useState(null);
-  const [marketingOverrides, setMarketingOverrides] = useState({});
-  const marketingLoadedKey = useRef(null); // 로드된 제품 key 추적 (탭 재진입 skip용)
+  // 제품별 독립 마케팅 리포트 맵 { [productId]: { ...reportFields, updatedAt } }
+  const [marketingReports, setMarketingReports] = useState({});
 
   const [loading, setLoading] = useState(false);
 
@@ -299,8 +298,6 @@ export default function ReviewAnalysisPage() {
           break;
         }
         case 'marketing': {
-          // 탭 재진입 시 동일 제품이면 skip, 제품/날짜 바뀌면 재조회
-          if (marketingData && marketingLoadedKey.current === ids && !opts.force) break;
           // 대시보드 데이터 없으면 먼저 로드
           let freshDash = dashboardDataRef.current;
           if (!freshDash.length) {
@@ -309,29 +306,29 @@ export default function ReviewAnalysisPage() {
             freshDash = dJson.data || [];
             setDashAndRef(freshDash);
           }
-          // 마케팅 리포트는 항상 전체 누적 데이터 기준 (날짜 필터 무시) → 캐시 키 일치
-          const allStart = '2020-01-01';
-          const allEnd = new Date().toISOString().slice(0, 10);
+
           if (opts.force && opts.productId) {
-            const url = `${base}/marketing?productIds=${opts.productId}&startDate=${allStart}&endDate=${allEnd}&force=true`;
+            // 특정 제품만 재생성
+            const url = `${base}/marketing?productIds=${opts.productId}&force=true&forcePid=${opts.productId}`;
             const res = await fetch(url);
             const json = await res.json();
             const prod = json.data?.products?.[0];
             if (prod) {
-              setMarketingOverrides(prev => ({ ...prev, [opts.productId]: { ...prod, updatedAt: json.updatedAt } }));
-              // marketingData에도 반영해 loadedKey 유지
-              setMarketingData(prev => prev ? {
-                ...prev,
-                products: prev.products?.map(p => String(p.productId) === String(opts.productId) ? { ...p, ...prod } : p)
-              } : prev);
+              setMarketingReports(prev => ({ ...prev, [opts.productId]: prod }));
             }
           } else {
-            const url = `${base}/marketing?productIds=${ids}&startDate=${allStart}&endDate=${allEnd}`;
+            // 아직 로드 안 된 제품만 요청
+            const missingIds = selectedProducts.filter(pid => !marketingReports[pid]);
+            if (missingIds.length === 0) break;
+            const url = `${base}/marketing?productIds=${missingIds.join(',')}`;
             const res = await fetch(url);
             const json = await res.json();
-            if (json.data) {
-              setMarketingData({ ...json.data, cached: json.cached, updatedAt: json.updatedAt });
-              marketingLoadedKey.current = ids;
+            if (json.data?.products?.length > 0) {
+              const updates = {};
+              for (const prod of json.data.products) {
+                if (prod.productId) updates[prod.productId] = prod;
+              }
+              setMarketingReports(prev => ({ ...prev, ...updates }));
             }
           }
           break;
@@ -467,12 +464,6 @@ export default function ReviewAnalysisPage() {
     }
   };
 
-  // 마케팅 데이터에서 productId 기반 override 적용
-  const getMktProduct = (p) => {
-    const pid = p.productId;
-    if (pid && marketingOverrides[pid]) return { ...p, ...marketingOverrides[pid] };
-    return p;
-  };
 
   // ── 리뷰 카드 (공통) ──────────────────────────────
   const renderHighlightedText = (text, highlights) => {
@@ -1021,34 +1012,26 @@ export default function ReviewAnalysisPage() {
   const PRIORITY_COLOR = { high: '#E8734A', mid: '#F39C12', low: '#94a3b8' };
 
   const renderMarketing = () => {
-    const products_list = marketingData?.products;
-    if (!products_list?.length) {
+    if (!selectedProducts.length) {
       return <div className="ra-empty-state">AI 전략 리포트가 없습니다. 제품을 선택 후 탭을 클릭하세요.</div>;
     }
 
     return (
       <div className="ra-marketing-container">
-        {/* 전체 리포트 생성일 */}
-        {marketingData.updatedAt && (
-          <div style={{ textAlign: 'right', marginBottom: '1rem', fontSize: '0.8rem', color: '#64748b' }}>
-            리포트 생성: {new Date(marketingData.updatedAt).toLocaleString('ko-KR', { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
-          </div>
-        )}
-
-        {products_list.map((rawP, i) => {
-          const p = getMktProduct(rawP, i);
-          let pid = p.productId;
-          const allDash = dashboardDataRef.current.length ? dashboardDataRef.current : dashboardData;
-          let dash = pid ? allDash.find(d => String(d.productId) === String(pid)) : null;
-          if (!dash) {
-            // productName 기반 폴백 (trim 정규화)
-            dash = allDash.find(d => d.productName?.trim() === p.productName?.trim() && d.brandName?.trim() === p.brandName?.trim())
-                || allDash.find(d => d.productName?.trim() === p.productName?.trim())
-                || allDash[i]; // 인덱스 기반 최후 폴백
-            if (dash && !pid) pid = dash.productId;
+        {selectedProducts.map((pid) => {
+          const p = marketingReports[pid];
+          if (!p) {
+            return (
+              <div key={pid} className="ra-marketing-report">
+                <div className="ra-loading" style={{ padding: '2rem' }}>
+                  <Loader2 className="ra-spinner" /><span>리포트 로드 중...</span>
+                </div>
+              </div>
+            );
           }
-          const override = pid ? marketingOverrides[pid] : null;
-          const displayUpdatedAt = override?.updatedAt || (i === 0 ? marketingData.updatedAt : null);
+          const allDash = dashboardDataRef.current.length ? dashboardDataRef.current : dashboardData;
+          const dash = allDash.find(d => String(d.productId) === String(pid)) || null;
+          const displayUpdatedAt = p.updatedAt;
           const total = dash ? parseInt(dash.totalReviews) || 0 : null;
           const pos = dash ? parseInt(dash.positiveCount) || 0 : null;
           const neg = dash ? parseInt(dash.negativeCount) || 0 : null;
@@ -1062,7 +1045,7 @@ export default function ReviewAnalysisPage() {
           const notionUrl = pid ? notionUrls[pid] : null;
 
           return (
-            <div key={i} className="ra-marketing-report">
+            <div key={pid} className="ra-marketing-report">
               {/* 제품별 툴바 */}
               <div className="ra-mkt-product-toolbar">
                 <div>
@@ -1111,7 +1094,7 @@ export default function ReviewAnalysisPage() {
                          <h4 style={{ margin: '0.2rem 0 0 0', fontSize: '1rem', lineHeight: '1.4' }}>{dash.productName}</h4>
                           {(() => {
                             const prod = products.find(pr => String(pr.id) === String(pid));
-                            const url = prod?.pageUrl || override?.pageUrl || override?.page_url;
+                            const url = prod?.pageUrl;
                             return url ? <a href={url} target="_blank" rel="noreferrer" className="ra-external-link" style={{ fontSize: '0.75rem', marginTop: '0.5rem', display: 'inline-block' }}>상품 상세 보기 ↗</a> : null;
                           })()}
                        </div>
