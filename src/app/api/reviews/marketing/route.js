@@ -48,7 +48,27 @@ export async function GET(request) {
 
     // 생성 필요한 제품만 데이터 수집
     const dashboard = await getReviewDashboard(toGenerateIds, allStart, allEnd);
-    const attrStats = await getAttributeStatsByProduct(toGenerateIds, allStart, allEnd);
+
+    // 리뷰 50건 미만 제품은 생성 불가 처리
+    const MIN_REVIEWS = 50;
+    const insufficientByPid = {};
+    const actualGenerateIds = [];
+    for (const pid of toGenerateIds) {
+      const d = dashboard.find(d => String(d.productId) === String(pid));
+      if (!d || parseInt(d.totalReviews) < MIN_REVIEWS) {
+        insufficientByPid[pid] = { productId: pid, insufficientData: true };
+      } else {
+        actualGenerateIds.push(pid);
+      }
+    }
+
+    // 생성 가능한 제품이 없으면 바로 반환
+    if (actualGenerateIds.length === 0) {
+      const products = productIds.map(pid => cachedByPid[pid] || insufficientByPid[pid] || { productId: pid });
+      return NextResponse.json({ data: { products } });
+    }
+
+    const attrStats = await getAttributeStatsByProduct(actualGenerateIds, allStart, allEnd);
 
     // 제품별 속성 맵
     const attrByProduct = {};
@@ -63,15 +83,15 @@ export async function GET(request) {
     // 제품별 리뷰 샘플 (최대 5건)
     const negSampleByProduct = {};
     const posSampleByProduct = {};
-    for (const pid of toGenerateIds) {
+    for (const pid of actualGenerateIds) {
       const negRevs = await getReviewsWithDetails([pid], allStart, allEnd, 'negative', null, 1);
       const posRevs = await getReviewsWithDetails([pid], allStart, allEnd, 'positive', null, 1);
       negSampleByProduct[pid] = negRevs.slice(0, 5).map(r => r.reviewText?.slice(0, 150)).filter(Boolean);
       posSampleByProduct[pid] = posRevs.slice(0, 5).map(r => r.reviewText?.slice(0, 150)).filter(Boolean);
     }
 
-    // 프롬프트 컨텍스트 구성
-    const productSummaries = dashboard.map(d => {
+    // 프롬프트 컨텍스트 구성 (생성 가능한 제품만)
+    const productSummaries = dashboard.filter(d => actualGenerateIds.includes(d.productId)).map(d => {
       const pid = String(d.productId);
       const attrs = attrByProduct[pid] || {};
       const total = parseInt(d.totalReviews) || 0;
@@ -187,8 +207,8 @@ ${productSummaries}
       }
     }
 
-    // 캐시 + 생성 결과 합쳐서 반환
-    const products = productIds.map(pid => cachedByPid[pid] || generatedByPid[pid] || { productId: pid, updatedAt: now, cached: false });
+    // 캐시 + 생성 + 리뷰 부족 결과 합쳐서 반환
+    const products = productIds.map(pid => cachedByPid[pid] || generatedByPid[pid] || insufficientByPid[pid] || { productId: pid, updatedAt: now, cached: false });
     return NextResponse.json({ data: { products } });
   } catch (error) {
     console.error('Marketing analysis error:', error);

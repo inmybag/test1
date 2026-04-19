@@ -1043,15 +1043,16 @@ export default function ReviewAnalysisPage() {
 
           const isSending = pid && notionSendingPids.has(pid);
           const notionUrl = pid ? notionUrls[pid] : null;
+          const isInsufficient = p.insufficientData === true;
 
           return (
             <div key={pid} className="ra-marketing-report">
               {/* 제품별 툴바 */}
               <div className="ra-mkt-product-toolbar">
                 <div>
-                  <span className="ra-mkt-brand">{p.brandName}</span>
-                  <span className="ra-mkt-pname" style={{ marginLeft: '0.75rem' }}>{p.productName}</span>
-                  {displayUpdatedAt && (
+                  <span className="ra-mkt-brand">{dash?.brandName || p.brandName}</span>
+                  <span className="ra-mkt-pname" style={{ marginLeft: '0.75rem' }}>{dash?.productName || p.productName}</span>
+                  {displayUpdatedAt && !isInsufficient && (
                     <div style={{ fontSize: '0.75rem', color: '#64748b', marginTop: '0.2rem' }}>
                       생성: {new Date(displayUpdatedAt).toLocaleString('ko-KR', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
                     </div>
@@ -1142,6 +1143,12 @@ export default function ReviewAnalysisPage() {
                 </div>
               )}
 
+              {isInsufficient ? (
+                <div style={{ textAlign: 'center', padding: '2.5rem 1rem', color: '#64748b', fontSize: '0.95rem', background: 'rgba(255,255,255,0.03)', borderRadius: '12px', border: '1px dashed rgba(255,255,255,0.1)' }}>
+                  리뷰가 충분하지 않아 AI 분석 리포트가 생성되지 않았습니다.
+                  <div style={{ fontSize: '0.8rem', marginTop: '0.5rem', color: '#475569' }}>리뷰 50건 이상 수집 후 이용 가능합니다.</div>
+                </div>
+              ) : (
               <div className="ra-mkt-grid">
                 {/* VoC 개선 */}
                 <div className="ra-mkt-section ra-mkt-section-full">
@@ -1204,6 +1211,7 @@ export default function ReviewAnalysisPage() {
                   </div>
                 </div>
               </div>
+              )}
             </div>
           );
         })}
