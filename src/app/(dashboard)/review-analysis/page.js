@@ -54,6 +54,12 @@ export default function ReviewAnalysisPage() {
   const [chartFilterDate, setChartFilterDate] = useState(null);
   const [chartFilterPid, setChartFilterPid] = useState(null);
 
+  // 기간별 분석 무한 스크롤
+  const [periodPage, setPeriodPage] = useState(1);
+  const [periodHasMore, setPeriodHasMore] = useState(false);
+  const [periodLoadingMore, setPeriodLoadingMore] = useState(false);
+  const periodSentinelRef = useRef(null);
+
   // VoC 상세
   const [selectedVocRow, setSelectedVocRow] = useState(null);
   const [vocDetailFilter, setVocDetailFilter] = useState(null);
@@ -117,12 +123,31 @@ export default function ReviewAnalysisPage() {
     }
   }, [selectedProducts, startDate, endDate, activeTab]);
 
-  // 기간별 분석: 필터/차트클릭 변경 → 리뷰만 재조회
+  // 기간별 분석: 필터/차트클릭 변경 → 리뷰 초기화 후 1페이지 재조회
   useEffect(() => {
     if (activeTab === 'period' && selectedProducts.length > 0 && startDate && endDate) {
-      loadPeriodReviews();
+      setPeriodPage(1);
+      setPeriodHasMore(false);
+      loadPeriodReviews(undefined, undefined, undefined, undefined, undefined, undefined, undefined, 1, true);
     }
   }, [sentimentFilter, selectedAttribute, chartFilterDate, chartFilterPid]);
+
+  // IntersectionObserver — sentinel이 보이면 다음 페이지 로드
+  useEffect(() => {
+    if (!periodSentinelRef.current) return;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting && periodHasMore && !periodLoadingMore) {
+          const nextPage = periodPage + 1;
+          setPeriodPage(nextPage);
+          loadPeriodReviews(undefined, undefined, undefined, undefined, undefined, undefined, undefined, nextPage, false);
+        }
+      },
+      { threshold: 0.1 }
+    );
+    observer.observe(periodSentinelRef.current);
+    return () => observer.disconnect();
+  }, [periodHasMore, periodLoadingMore, periodPage]);
 
   const fetchProducts = async () => {
     try {
@@ -159,8 +184,10 @@ export default function ReviewAnalysisPage() {
           const vocJson = await vocRes.json();
           setPeriodData({ periodData: periodJson.periodData || [], reviews: [] });
           setVocData(vocJson.data || []);
-          // 리뷰는 별도로 로드
-          await loadPeriodReviews(ids, startDate, endDate, sentimentFilter, selectedAttribute, chartFilterDate, chartFilterPid);
+          // 리뷰는 별도로 로드 (1페이지, replace)
+          setPeriodPage(1);
+          setPeriodHasMore(false);
+          await loadPeriodReviews(ids, startDate, endDate, sentimentFilter, selectedAttribute, chartFilterDate, chartFilterPid, 1, true);
           break;
         }
         case 'sentiment': {
@@ -218,19 +245,28 @@ export default function ReviewAnalysisPage() {
     sentFilter = sentimentFilter,
     attrFilter = selectedAttribute,
     cfDate = chartFilterDate,
-    cfPid = chartFilterPid
+    cfPid = chartFilterPid,
+    page = 1,
+    replace = true
   ) => {
     const pid = cfPid ? String(cfPid) : ids;
     const rsd = cfDate || sd;
     const red = cfDate || ed;
-    const params = new URLSearchParams({ productIds: pid, startDate: rsd, endDate: red });
+    const params = new URLSearchParams({ productIds: pid, startDate: rsd, endDate: red, page });
     if (sentFilter) params.set('sentiment', sentFilter);
     if (attrFilter && attrFilter.length > 0) params.set('attribute', Array.isArray(attrFilter) ? attrFilter.join(',') : attrFilter);
+    if (page > 1) setPeriodLoadingMore(true);
     try {
       const res = await fetch(`/api/reviews/period?${params}`);
       const data = await res.json();
-      setPeriodData(prev => ({ ...prev, reviews: data.reviews || [] }));
+      const fetched = data.reviews || [];
+      setPeriodHasMore(fetched.length === 10); // 10건 미만이면 마지막 페이지
+      setPeriodData(prev => ({
+        ...prev,
+        reviews: replace ? fetched : [...(prev.reviews || []), ...fetched],
+      }));
     } catch (err) { console.error('리뷰 로드 실패:', err); }
+    finally { setPeriodLoadingMore(false); }
   };
 
   const loadVocDetail = async (row, sentiment) => {
@@ -570,6 +606,14 @@ export default function ReviewAnalysisPage() {
             {(!reviews || !reviews.length) && (
               <div className="ra-empty-state">
                 {chartFilterDate ? '해당 날짜의 리뷰가 없습니다.' : '리뷰 데이터가 없습니다.'}
+              </div>
+            )}
+            {/* 무한 스크롤 sentinel */}
+            <div ref={periodSentinelRef} style={{ height: 1 }} />
+            {periodLoadingMore && (
+              <div style={{ textAlign: 'center', padding: '1rem', color: '#64748b', fontSize: '0.85rem' }}>
+                <Loader2 size={18} className="ra-spinner" style={{ display: 'inline-block', marginRight: '0.4rem' }} />
+                더 불러오는 중...
               </div>
             )}
           </div>
