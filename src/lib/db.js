@@ -482,7 +482,7 @@ export async function getReviewDashboard(productIds, startDate, endDate) {
         COUNT(CASE WHEN pr.sentiment = 'negative' THEN 1 END) as "negativeCount",
         COUNT(CASE WHEN pr.sentiment = 'neutral' THEN 1 END) as "neutralCount",
         ROUND(AVG(pr.rating)::numeric, 1) as "avgRating",
-        (SELECT COUNT(*) FROM product_reviews WHERE product_id = rp.id AND review_date = TO_CHAR(CURRENT_DATE, 'YYYY-MM-DD')) as "todayCount",
+        (SELECT COUNT(*) FROM product_reviews WHERE product_id = rp.id AND created_at::date = CURRENT_DATE) as "todayCount",
         (SELECT COUNT(*) FROM product_reviews WHERE product_id = rp.id) as "allTimeCount"
       FROM review_products rp
       LEFT JOIN product_reviews pr ON rp.id = pr.product_id
