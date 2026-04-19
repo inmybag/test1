@@ -451,7 +451,7 @@ export async function saveProductReviews(reviews) {
           ${r.sentiment}, ${r.sentiment_score}, ${JSON.stringify(r.attributes || [])},
           ${JSON.stringify(r.source_highlight || [])}
         )
-        ON CONFLICT ON CONSTRAINT idx_review_unique 
+        ON CONFLICT (product_id, review_date, COALESCE(reviewer_nickname, ''), LEFT(COALESCE(review_text, ''), 100))
         DO UPDATE SET 
           media_urls = EXCLUDED.media_urls,
           extra_info = EXCLUDED.extra_info,

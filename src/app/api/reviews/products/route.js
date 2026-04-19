@@ -43,7 +43,7 @@ export async function POST(request) {
       try {
         const logPath = `${process.cwd()}/scripts/backfill_${result.id}.log`;
         const child = spawn(
-          process.execPath, // 'node' 대신 현재 실행 중인 Node 바이너리 절대경로 사용
+          '/usr/local/bin/node',
           ['scripts/crawl-reviews-backfill.js', String(result.id)],
           {
             cwd: process.cwd(),
