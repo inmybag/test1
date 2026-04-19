@@ -242,7 +242,11 @@ export default function ReviewAnalysisPage() {
     } catch (err) { console.error('제품 로드 실패:', err); }
   };
 
-  const removeProduct = (id) => setSelectedProducts(prev => prev.filter(p => p !== id));
+  const removeProduct = (id) => {
+    setSelectedProducts(prev => prev.filter(p => p !== id));
+    setChartFilterDate(null);
+    setChartFilterPid(null);
+  };
 
   const fetchTabData = async (tab, opts = {}) => {
     if (!selectedProducts.length) return;
@@ -1393,9 +1397,13 @@ export default function ReviewAnalysisPage() {
                         type="checkbox"
                         checked={isChecked}
                         style={{ flexShrink: 0 }}
-                        onChange={() => setSelectedProducts(prev =>
-                          prev.includes(p.id) ? prev.filter(x => x !== p.id) : [...prev, p.id]
-                        )}
+                        onChange={() => {
+                          setSelectedProducts(prev =>
+                            prev.includes(p.id) ? prev.filter(x => x !== p.id) : [...prev, p.id]
+                          );
+                          setChartFilterDate(null);
+                          setChartFilterPid(null);
+                        }}
                       />
                       {p.thumbnailUrl
                         ? <img src={p.thumbnailUrl} alt="" style={{ width: 40, height: 40, borderRadius: 8, objectFit: 'cover', flexShrink: 0, background: '#1e293b' }} />
