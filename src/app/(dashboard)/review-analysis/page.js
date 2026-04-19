@@ -1033,7 +1033,11 @@ export default function ReviewAnalysisPage() {
           const displayUpdatedAt = override?.updatedAt || (i === 0 ? marketingData.updatedAt : null);
           const total = dash ? parseInt(dash.totalReviews) || 0 : null;
           const pos = dash ? parseInt(dash.positiveCount) || 0 : null;
+          const neg = dash ? parseInt(dash.negativeCount) || 0 : null;
+          const neu = total && pos !== null && neg !== null ? Math.max(0, total - pos - neg) : null;
           const posRate = total > 0 ? Math.round(pos / total * 100) : null;
+          const negRate = total > 0 ? Math.round(neg / total * 100) : null;
+          const neuRate = total > 0 ? Math.max(0, 100 - posRate - negRate) : null;
           const avgRating = dash?.avgRating || null;
 
           const isSending = pid && notionSendingPids.has(pid);
@@ -1108,10 +1112,15 @@ export default function ReviewAnalysisPage() {
                          <div className="ra-bar-track" style={{ flex: 1, height: '8px', background: 'rgba(255,255,255,0.1)', borderRadius: '4px', overflow: 'hidden' }}><div className="ra-bar-fill positive" style={{ width: `${posRate}%`, background: '#60a5fa', height: '100%' }} /></div>
                          <span className="ra-sentiment-pct positive" style={{ width: '40px', textAlign: 'right', fontSize: '0.85rem', color: '#60a5fa', fontWeight: 'bold' }}>{posRate}%</span>
                        </div>
+                       <div className="ra-sentiment-bar" style={{ marginBottom: '1rem' }}>
+                         <span className="ra-sentiment-label neutral" style={{ width: '60px', fontSize: '0.8rem' }}>중립비중</span>
+                         <div className="ra-bar-track" style={{ flex: 1, height: '8px', background: 'rgba(255,255,255,0.1)', borderRadius: '4px', overflow: 'hidden' }}><div className="ra-bar-fill neutral" style={{ width: `${neuRate}%`, height: '100%' }} /></div>
+                         <span className="ra-sentiment-pct neutral" style={{ width: '40px', textAlign: 'right', fontSize: '0.85rem', fontWeight: 'bold' }}>{neuRate}%</span>
+                       </div>
                        <div className="ra-sentiment-bar">
                          <span className="ra-sentiment-label negative" style={{ width: '60px', fontSize: '0.8rem' }}>부정비중</span>
-                         <div className="ra-bar-track" style={{ flex: 1, height: '8px', background: 'rgba(255,255,255,0.1)', borderRadius: '4px', overflow: 'hidden' }}><div className="ra-bar-fill negative" style={{ width: `${100-posRate}%`, background: '#f87171', height: '100%' }} /></div>
-                         <span className="ra-sentiment-pct negative" style={{ width: '40px', textAlign: 'right', fontSize: '0.85rem', color: '#f87171', fontWeight: 'bold' }}>{100-posRate}%</span>
+                         <div className="ra-bar-track" style={{ flex: 1, height: '8px', background: 'rgba(255,255,255,0.1)', borderRadius: '4px', overflow: 'hidden' }}><div className="ra-bar-fill negative" style={{ width: `${negRate}%`, background: '#f87171', height: '100%' }} /></div>
+                         <span className="ra-sentiment-pct negative" style={{ width: '40px', textAlign: 'right', fontSize: '0.85rem', color: '#f87171', fontWeight: 'bold' }}>{negRate}%</span>
                        </div>
                      </div>
                      {avgRating && <div className="ra-avg-rating" style={{ marginTop: '1.5rem', color: '#fbbf24', fontSize: '0.9rem', fontWeight: 'bold' }}>평균 ★ {avgRating}</div>}
