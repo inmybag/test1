@@ -135,6 +135,12 @@ export default function ReviewAnalysisPage() {
     return () => document.removeEventListener('mousedown', handler);
   }, []);
 
+  // 제품/날짜 변경 시 마케팅 리포트 초기화 (재생성 필요)
+  useEffect(() => {
+    setMarketingData(null);
+    setMarketingOverrides({});
+  }, [selectedProducts.join(','), startDate, endDate]); // eslint-disable-line react-hooks/exhaustive-deps
+
   // 탭 전환 / 제품 / 날짜 변경 → 전체 데이터 재조회
   useEffect(() => {
     if (selectedProducts.length > 0 && startDate && endDate) {
@@ -294,7 +300,9 @@ export default function ReviewAnalysisPage() {
           break;
         }
         case 'marketing': {
-          // 대시보드데이터 없으면 먹저 로드한 뒤 marketing 요청
+          // 이미 로드된 리포트가 있으면 탭 재진입 시 API 재호출 스킵
+          if (marketingData && !opts.force) break;
+          // 대시보드데이터 없으면 먼저 로드한 뒤 marketing 요청
           let freshDash = dashboardDataRef.current;
           if (!freshDash.length) {
             const dRes = await fetch(`${base}/dashboard?productIds=${ids}&startDate=${startDate}&endDate=${endDate}`);
