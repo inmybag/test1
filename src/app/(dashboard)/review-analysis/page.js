@@ -1,7 +1,6 @@
 'use client';
 
 import React, { useState, useEffect, useRef } from 'react';
-import dynamic from 'next/dynamic';
 import { Settings, Calendar, ChevronDown, X, TrendingUp, TrendingDown, BarChart3, MessageSquare, Megaphone, Loader2, Star, Lock, ExternalLink } from 'lucide-react';
 import { Chart as ChartJS, CategoryScale, LinearScale, PointElement, LineElement, BarElement, Title, Tooltip, Legend, Filler } from 'chart.js';
 import { Line, Bar } from 'react-chartjs-2';
@@ -59,6 +58,7 @@ export default function ReviewAnalysisPage() {
   const [periodHasMore, setPeriodHasMore] = useState(false);
   const [periodLoadingMore, setPeriodLoadingMore] = useState(false);
   const periodSentinelRef = useRef(null);
+  const periodScrollRef = useRef(null);
 
   // VoC 상세
   const [selectedVocRow, setSelectedVocRow] = useState(null);
@@ -132,22 +132,50 @@ export default function ReviewAnalysisPage() {
     }
   }, [sentimentFilter, selectedAttribute, chartFilterDate, chartFilterPid]);
 
-  // IntersectionObserver — sentinel이 보이면 다음 페이지 로드
+  // 무한 스크롤 — ref로 최신 상태/함수 추적 (stale closure 방지)
+  const periodHasMoreRef = useRef(false);
+  const periodLoadingMoreRef = useRef(false);
+  const periodPageRef = useRef(1);
+  const loadPeriodReviewsRef = useRef(null);
+
+  useEffect(() => { periodHasMoreRef.current = periodHasMore; }, [periodHasMore]);
+  useEffect(() => { periodLoadingMoreRef.current = periodLoadingMore; }, [periodLoadingMore]);
+  useEffect(() => { periodPageRef.current = periodPage; }, [periodPage]);
+
+  // 스크롤 리스너 — activeTab이 period일 때 컨테이너에 부착
   useEffect(() => {
-    if (!periodSentinelRef.current) return;
-    const observer = new IntersectionObserver(
-      (entries) => {
-        if (entries[0].isIntersecting && periodHasMore && !periodLoadingMore) {
-          const nextPage = periodPage + 1;
-          setPeriodPage(nextPage);
-          loadPeriodReviews(undefined, undefined, undefined, undefined, undefined, undefined, undefined, nextPage, false);
-        }
-      },
-      { threshold: 0.1 }
-    );
-    observer.observe(periodSentinelRef.current);
-    return () => observer.disconnect();
-  }, [periodHasMore, periodLoadingMore, periodPage]);
+    if (activeTab !== 'period') return;
+    const container = periodScrollRef.current;
+    if (!container) return;
+
+    const handleScroll = () => {
+      if (periodLoadingMoreRef.current || !periodHasMoreRef.current) return;
+      const { scrollTop, scrollHeight, clientHeight } = container;
+      if (scrollTop + clientHeight >= scrollHeight - 100) {
+        periodLoadingMoreRef.current = true;
+        const nextPage = periodPageRef.current + 1;
+        periodPageRef.current = nextPage;
+        setPeriodPage(nextPage);
+        loadPeriodReviewsRef.current?.(undefined, undefined, undefined, undefined, undefined, undefined, undefined, nextPage, false);
+      }
+    };
+    container.addEventListener('scroll', handleScroll);
+    return () => container.removeEventListener('scroll', handleScroll);
+  }, [activeTab]);
+
+  // 컨테이너가 스크롤 없이 꽉 안 찬 경우 자동 추가 로드
+  useEffect(() => {
+    if (!periodHasMore || periodLoadingMore || activeTab !== 'period') return;
+    const container = periodScrollRef.current;
+    if (!container) return;
+    if (container.scrollHeight <= container.clientHeight + 10) {
+      const nextPage = periodPageRef.current + 1;
+      periodPageRef.current = nextPage;
+      setPeriodPage(nextPage);
+      loadPeriodReviewsRef.current?.(undefined, undefined, undefined, undefined, undefined, undefined, undefined, nextPage, false);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [periodHasMore, periodLoadingMore]);
 
   const fetchProducts = async () => {
     try {
@@ -268,6 +296,8 @@ export default function ReviewAnalysisPage() {
     } catch (err) { console.error('리뷰 로드 실패:', err); }
     finally { setPeriodLoadingMore(false); }
   };
+  // 항상 최신 함수 참조 유지
+  loadPeriodReviewsRef.current = loadPeriodReviews;
 
   const loadVocDetail = async (row, sentiment) => {
     setVocDetailLoading(true);
@@ -335,7 +365,7 @@ export default function ReviewAnalysisPage() {
   };
 
   // 마케팅 데이터에서 productId 기반 override 적용
-  const getMktProduct = (p, idx) => {
+  const getMktProduct = (p) => {
     const pid = p.productId;
     if (pid && marketingOverrides[pid]) return { ...p, ...marketingOverrides[pid] };
     return p;
@@ -577,7 +607,7 @@ export default function ReviewAnalysisPage() {
             )}
           </div>
         </div>
-        <div className="ra-period-right" style={{ display: 'flex', flexDirection: 'column', height: 'calc(100vh - 260px)' }}>
+        <div ref={periodScrollRef} className="ra-period-right" style={{ display: 'flex', flexDirection: 'column', height: 'calc(100vh - 260px)' }}>
           <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flexWrap: 'wrap', flexShrink: 0 }}>
             <div className="ra-filter-bar">
               {['전체', '긍정', '중립', '부정'].map(label => {
@@ -900,8 +930,6 @@ export default function ReviewAnalysisPage() {
           const pos = dash ? parseInt(dash.positiveCount) || 0 : null;
           const posRate = total > 0 ? Math.round(pos / total * 100) : null;
           const avgRating = dash?.avgRating || null;
-          const todayCount = dash ? parseInt(dash.todayCount) || 0 : null;
-          const allTimeCount = dash ? parseInt(dash.allTimeCount) || 0 : null;
 
           const isSending = pid && notionSendingPids.has(pid);
           const notionUrl = pid ? notionUrls[pid] : null;
