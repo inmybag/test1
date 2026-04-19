@@ -111,7 +111,7 @@ export default function ReviewAnalysisPage() {
   useEffect(() => {
     const now = new Date();
     const ed = now.toISOString().split('T')[0];
-    const sd = new Date(now.getTime() - 30 * 86400000).toISOString().split('T')[0];
+    const sd = new Date(now.getTime() - 90 * 86400000).toISOString().split('T')[0];
     setStartDate(sd);
     setEndDate(ed);
     fetchProducts();
