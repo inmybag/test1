@@ -43,6 +43,112 @@ function decodeSkin(profile) {
   return info;
 }
 
+// Cafe24 네이티브 리뷰 HTML 스크래핑 (Crema 미사용 쇼핑몰용)
+async function fetchNativeCafe24Reviews(baseUrl, productNo, cutoffDate) {
+  const reviews = [];
+
+  // 첫 페이지에서 board_no 파악
+  let boardNo = 4;
+  try {
+    const firstPage = await axios.get(`${baseUrl}/product/detail.html?product_no=${productNo}`, {
+      headers: { 'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36' },
+      timeout: 15000
+    });
+    const boardMatch = firstPage.data.match(/CAFE24\.BOARD\s*=\s*\{"config_(\d+)"/);
+    if (boardMatch) boardNo = parseInt(boardMatch[1]);
+  } catch (e) {
+    console.log(`  [네이티브] 첫 페이지 로드 실패: ${e.message}`);
+    return reviews;
+  }
+
+  console.log(`  [네이티브] board_no=${boardNo} 감지`);
+
+  let page = 1;
+  let stop = false;
+
+  while (!stop) {
+    console.log(`  [네이티브] 목록 페이지 ${page} 호출 중...`);
+    let html;
+    try {
+      const res = await axios.get(`${baseUrl}/product/detail.html?product_no=${productNo}&page_${boardNo}=${page}`, {
+        headers: { 'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36' },
+        timeout: 15000
+      });
+      html = res.data;
+    } catch (e) {
+      console.log(`  [네이티브] 목록 페이지 오류: ${e.message}`);
+      break;
+    }
+
+    // 리뷰 목록 항목 파싱
+    const itemRegex = /href="\/product\/provider\/review_read\.xml\?no=(\d+)&board_no=(\d+)[^"]*"[\s\S]*?class="summary">([\s\S]*?)<\/strong>[\s\S]*?class="id"[^>]*>([\s\S]*?)<\/span>[\s\S]*?class="date[^"]*"[^>]*>([\s\S]*?)<\/span>(?:[\s\S]*?class="point[^"]*"[\s\S]*?alt="(\d+)점")?/g;
+
+    let match;
+    const pageItems = [];
+    while ((match = itemRegex.exec(html)) !== null) {
+      const no = match[1];
+      const dateRaw = match[5]?.trim() || '';
+      const dateStr = dateRaw.match(/(\d{4}-\d{2}-\d{2})/)?.[1] || null;
+      if (!dateStr) continue;
+
+      const rating = match[6] ? parseInt(match[6]) : 5;
+      const title = match[3].replace(/<[^>]+>/g, '').trim();
+      const author = match[4].replace(/<[^>]+>/g, '').trim();
+
+      pageItems.push({ no, dateStr, rating, title, author });
+    }
+
+    if (pageItems.length === 0) {
+      console.log(`  [네이티브] 더 이상 리뷰 없음`);
+      break;
+    }
+
+    console.log(`  [네이티브] ${pageItems.length}건 발견`);
+
+    // 각 리뷰 상세 페이지에서 본문 수집
+    for (const item of pageItems) {
+      if (item.dateStr < '2025-01-01') { stop = true; continue; }
+
+      let body = item.title; // fallback
+      try {
+        const detailRes = await axios.get(`${baseUrl}/board/product/read.html?no=${item.no}&board_no=${boardNo}`, {
+          headers: { 'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36' },
+          timeout: 10000
+        });
+        const detailHtml = detailRes.data;
+        const contentMatch = detailHtml.match(/class="content"[\s\S]*?<strong[^>]*>내용<\/strong>\s*([\s\S]*?)<\/div>/);
+        if (contentMatch) {
+          body = contentMatch[1].replace(/<br\s*\/?>/gi, '\n').replace(/<[^>]+>/g, '')
+            .replace(/\([^)]*에 등록된[^)]*구매평\)/g, '').trim();
+        }
+        // 첨부 이미지
+      } catch (e) {
+        console.log(`  [네이티브] 상세 ${item.no} 오류: ${e.message}`);
+      }
+
+      reviews.push({
+        review_text: body || item.title,
+        rating: item.rating,
+        reviewer_nickname: item.author || '익명',
+        review_date: item.dateStr,
+        extra_info: {},
+        media_urls: []
+      });
+
+      await new Promise(r => setTimeout(r, 400));
+    }
+
+    // 페이지네이션 종료 감지
+    const hasNextPage = new RegExp(`page_${boardNo}=${page + 1}`).test(html);
+    if (!hasNextPage || stop) break;
+    page++;
+    await new Promise(r => setTimeout(r, 1000));
+  }
+
+  console.log(`  [네이티브] 총 ${reviews.length}건 수집 완료`);
+  return reviews;
+}
+
 // Gemini AI 감성분석
 async function analyzeWithGemini(reviews) {
   if (!reviews.length) return reviews;
@@ -135,18 +241,21 @@ async function main() {
       }
       console.log(`[일일크롤러] 상품번호: ${productNo}`);
 
-      // 리뷰 수집 (Crema API)
+      // 리뷰 수집: Crema API 먼저 시도, 실패 시 네이티브 HTML 스크래핑
       const allReviews = [];
       let pageNum = 1;
+      let cremaWorked = false;
 
       while (true) {
-        console.log(`  [API] 페이지 ${pageNum} 호출 중...`);
+        console.log(`  [Crema] 페이지 ${pageNum} 호출 중...`);
         try {
           const res = await axios.get(`https://review1.cre.ma/api/${host}/reviews?product_code=${productNo}&sort=recent&widget_id=2&page=${pageNum}`);
           const reviews = res.data.reviews || [];
-          
+
+          if (pageNum === 1 && reviews.length > 0) cremaWorked = true;
+
           if (reviews.length === 0) {
-            console.log(`  [API] 리뷰 없음 또는 마지막 페이지`);
+            console.log(`  [Crema] 리뷰 없음 또는 마지막 페이지`);
             break;
           }
 
@@ -156,23 +265,15 @@ async function main() {
             const dc = await pool.connect();
             try { await dc.sql`UPDATE review_products SET thumbnail_url = ${thumb} WHERE id = ${product.id}`; } finally { dc.release(); }
             console.log(`[일일크롤러] 썸네일 저장: ${thumb.substring(0, 60)}...`);
-            product.thumbnail_url = thumb; // 메모리 갱신
+            product.thumbnail_url = thumb;
           }
 
-          console.log(`  [API] ${reviews.length}건 수취, 데이터 샘플: ${JSON.stringify(reviews[0], null, 2)}`);
+          console.log(`  [Crema] ${reviews.length}건 수취`);
 
           for (const raw of reviews) {
             let reviewDate = raw.created_at ? raw.created_at.split('T')[0] : null;
             if (!reviewDate) continue;
-
-            // 너무 오래된 리뷰 통과
             if (reviewDate < '2025-01-01') continue;
-
-            // 날짜 랜덤 로직 제거 (실제 데이터 정합성 유지)
-            // if (reviewDate < CUTOFF_DATE) {
-            //   const randomDays = Math.floor(Math.random() * 30);
-            //   reviewDate = getDateDaysAgo(randomDays);
-            // }
 
             let mediaUrls = [];
             if (raw.images && raw.images.length > 0) {
@@ -181,8 +282,8 @@ async function main() {
             if (raw.videos && raw.videos.length > 0) {
               mediaUrls = [...mediaUrls, ...raw.videos.map(vid => vid.url).filter(u => u)];
             }
-            
-            const skinInfo = raw.evaluation_properties ? 
+
+            const skinInfo = raw.evaluation_properties ?
               raw.evaluation_properties.reduce((acc, prop) => ({...acc, [prop.name]: prop.value}), {}) : {};
 
             allReviews.push({
@@ -195,13 +296,20 @@ async function main() {
             });
           }
         } catch (e) {
-          console.log(`  [API] 오류: ${e.message}`);
+          console.log(`  [Crema] 오류: ${e.message}`);
           break;
         }
 
-        if (pageNum >= 10) break; // 최대 10페이지 (100건)
+        if (pageNum >= 10) break;
         pageNum++;
         await new Promise(r => setTimeout(r, 800));
+      }
+
+      // Crema에서 리뷰를 못 받은 경우 → 네이티브 Cafe24 HTML 스크래핑
+      if (!cremaWorked) {
+        console.log(`  [네이티브] Crema 미사용 쇼핑몰 감지. HTML 스크래핑으로 전환...`);
+        const nativeReviews = await fetchNativeCafe24Reviews(`https://${host}`, productNo, CUTOFF_DATE);
+        allReviews.push(...nativeReviews);
       }
 
       console.log(`\n[일일크롤러] 총 ${allReviews.length}건 수집`);
