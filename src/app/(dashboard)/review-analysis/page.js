@@ -24,7 +24,7 @@ const DARK_CHART_DEFAULTS = {
   plugins: { legend: { labels: { color: '#e2e8f0', font: { size: 10 } } } },
   scales: {
     x: { ticks: { color: '#94a3b8', font: { size: 9 } }, grid: { color: 'rgba(255,255,255,0.04)' } },
-    y: { ticks: { color: '#94a3b8' }, grid: { color: 'rgba(255,255,255,0.04)' }, beginAtZero: true },
+    y: { ticks: { color: '#94a3b8', precision: 0, stepSize: 1 }, grid: { color: 'rgba(255,255,255,0.04)' }, beginAtZero: true },
   },
 };
 
@@ -684,7 +684,7 @@ export default function ReviewAnalysisPage() {
               }
             </div>
             {attrChips.length > 0 && (
-              <div className="ra-attr-chips" style={{ flex: 1, overflowY: 'auto' }}>
+              <div className="ra-attr-chips" style={{ overflowY: 'auto', alignContent: 'flex-start' }}>
                 {attrChips.map(({ name, count }) => (
                   <button
                     key={name}
