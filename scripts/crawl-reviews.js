@@ -234,7 +234,7 @@ async function main() {
             saved++;
           } catch(e) {}
         }
-        console.log(`[일일크롤러] DB 저장: \${saved}건`);
+        console.log(`[일일크롤러] DB 저장: ${saved}건`);
       } finally { dbClient.release(); }
       continue;
     }
