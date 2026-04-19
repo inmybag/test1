@@ -65,12 +65,31 @@ export default function ReviewAnalysisPage() {
   const [vocDetailFilter, setVocDetailFilter] = useState(null);
   const [vocDetailReviews, setVocDetailReviews] = useState([]);
   const [vocDetailLoading, setVocDetailLoading] = useState(false);
+  const [vocPage, setVocPage] = useState(1);
+  const [vocHasMore, setVocHasMore] = useState(false);
+  const [vocLoadingMore, setVocLoadingMore] = useState(false);
+  const vocScrollRef = useRef(null);
+  const vocHasMoreRef = useRef(false);
+  const vocLoadingMoreRef = useRef(false);
+  const vocPageRef = useRef(1);
+  const loadVocDetailRef = useRef(null);
+  const selectedVocRowRef = useRef(null);
+  const vocDetailFilterRef = useRef(null);
 
   // 리뷰 팝업 모달
   const [showReviewModal, setShowReviewModal] = useState(false);
   const [modalTitle, setModalTitle] = useState('');
   const [modalReviews, setModalReviews] = useState([]);
   const [modalLoading, setModalLoading] = useState(false);
+  const [modalPage, setModalPage] = useState(1);
+  const [modalHasMore, setModalHasMore] = useState(false);
+  const [modalLoadingMore, setModalLoadingMore] = useState(false);
+  const modalScrollRef = useRef(null);
+  const modalHasMoreRef = useRef(false);
+  const modalLoadingMoreRef = useRef(false);
+  const modalPageRef = useRef(1);
+  const loadModalReviewsRef = useRef(null);
+  const modalParamsRef = useRef({ pids: [], attr: null, sent: null });
 
   // 워드클라우드 모달
   const [showWordCloudModal, setShowWordCloudModal] = useState(false);
@@ -142,6 +161,16 @@ export default function ReviewAnalysisPage() {
   useEffect(() => { periodLoadingMoreRef.current = periodLoadingMore; }, [periodLoadingMore]);
   useEffect(() => { periodPageRef.current = periodPage; }, [periodPage]);
 
+  useEffect(() => { vocHasMoreRef.current = vocHasMore; }, [vocHasMore]);
+  useEffect(() => { vocLoadingMoreRef.current = vocLoadingMore; }, [vocLoadingMore]);
+  useEffect(() => { vocPageRef.current = vocPage; }, [vocPage]);
+  useEffect(() => { selectedVocRowRef.current = selectedVocRow; }, [selectedVocRow]);
+  useEffect(() => { vocDetailFilterRef.current = vocDetailFilter; }, [vocDetailFilter]);
+
+  useEffect(() => { modalHasMoreRef.current = modalHasMore; }, [modalHasMore]);
+  useEffect(() => { modalLoadingMoreRef.current = modalLoadingMore; }, [modalLoadingMore]);
+  useEffect(() => { modalPageRef.current = modalPage; }, [modalPage]);
+
   // 스크롤 리스너 — activeTab이 period일 때 컨테이너에 부착
   useEffect(() => {
     if (activeTab !== 'period') return;
@@ -176,6 +205,74 @@ export default function ReviewAnalysisPage() {
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [periodHasMore, periodLoadingMore]);
+
+  // VoC 상세 스크롤 리스너
+  useEffect(() => {
+    if (activeTab !== 'voc') return;
+    const container = vocScrollRef.current;
+    if (!container) return;
+    const handleScroll = () => {
+      if (vocLoadingMoreRef.current || !vocHasMoreRef.current) return;
+      const { scrollTop, scrollHeight, clientHeight } = container;
+      if (scrollTop + clientHeight >= scrollHeight - 100) {
+        vocLoadingMoreRef.current = true;
+        const nextPage = vocPageRef.current + 1;
+        vocPageRef.current = nextPage;
+        setVocPage(nextPage);
+        loadVocDetailRef.current?.(selectedVocRowRef.current, vocDetailFilterRef.current, nextPage, false);
+      }
+    };
+    container.addEventListener('scroll', handleScroll);
+    return () => container.removeEventListener('scroll', handleScroll);
+  }, [activeTab]);
+
+  useEffect(() => {
+    if (!vocHasMore || vocLoadingMore || activeTab !== 'voc') return;
+    const container = vocScrollRef.current;
+    if (!container) return;
+    if (container.scrollHeight <= container.clientHeight + 10) {
+      const nextPage = vocPageRef.current + 1;
+      vocPageRef.current = nextPage;
+      setVocPage(nextPage);
+      loadVocDetailRef.current?.(selectedVocRowRef.current, vocDetailFilterRef.current, nextPage, false);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [vocHasMore, vocLoadingMore]);
+
+  // 모달 스크롤 리스너
+  useEffect(() => {
+    if (!showReviewModal) return;
+    const container = modalScrollRef.current;
+    if (!container) return;
+    const handleScroll = () => {
+      if (modalLoadingMoreRef.current || !modalHasMoreRef.current) return;
+      const { scrollTop, scrollHeight, clientHeight } = container;
+      if (scrollTop + clientHeight >= scrollHeight - 100) {
+        modalLoadingMoreRef.current = true;
+        const nextPage = modalPageRef.current + 1;
+        modalPageRef.current = nextPage;
+        setModalPage(nextPage);
+        const { pids, attr, sent } = modalParamsRef.current;
+        loadModalReviewsRef.current?.(pids, attr, sent, nextPage, false);
+      }
+    };
+    container.addEventListener('scroll', handleScroll);
+    return () => container.removeEventListener('scroll', handleScroll);
+  }, [showReviewModal]);
+
+  useEffect(() => {
+    if (!modalHasMore || modalLoadingMore || !showReviewModal) return;
+    const container = modalScrollRef.current;
+    if (!container) return;
+    if (container.scrollHeight <= container.clientHeight + 10) {
+      const nextPage = modalPageRef.current + 1;
+      modalPageRef.current = nextPage;
+      setModalPage(nextPage);
+      const { pids, attr, sent } = modalParamsRef.current;
+      loadModalReviewsRef.current?.(pids, attr, sent, nextPage, false);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [modalHasMore, modalLoadingMore]);
 
   const fetchProducts = async () => {
     try {
@@ -299,33 +396,61 @@ export default function ReviewAnalysisPage() {
   // 항상 최신 함수 참조 유지
   loadPeriodReviewsRef.current = loadPeriodReviews;
 
-  const loadVocDetail = async (row, sentiment) => {
-    setVocDetailLoading(true);
-    setVocDetailReviews([]);
+  const loadVocDetail = async (row, sentiment, page = 1, replace = true) => {
+    if (!row) return;
+    if (replace) {
+      setVocDetailLoading(true);
+      setVocDetailReviews([]);
+      setVocPage(1);
+      setVocHasMore(false);
+      vocPageRef.current = 1;
+    } else {
+      setVocLoadingMore(true);
+    }
     try {
-      const params = new URLSearchParams({ productIds: row.productId, startDate, endDate, attribute: row.attributeName });
+      const params = new URLSearchParams({ productIds: row.productId, startDate, endDate, attribute: row.attributeName, page });
       if (sentiment) params.set('sentiment', sentiment);
       const res = await fetch(`/api/reviews/period?${params}`);
       const data = await res.json();
-      setVocDetailReviews(data.reviews || []);
+      const fetched = data.reviews || [];
+      setVocHasMore(fetched.length === 10);
+      setVocDetailReviews(prev => replace ? fetched : [...prev, ...fetched]);
     } catch (err) { console.error('VoC 상세 로드 실패:', err); }
-    finally { setVocDetailLoading(false); }
+    finally { setVocDetailLoading(false); setVocLoadingMore(false); }
   };
+  loadVocDetailRef.current = loadVocDetail;
 
-  const openReviewModal = async (title, pids, attr, sent) => {
-    setModalTitle(title);
-    setShowReviewModal(true);
-    setModalLoading(true);
-    setModalReviews([]);
+  const loadModalReviews = async (pids, attr, sent, page = 1, replace = true) => {
+    if (replace) {
+      setModalLoading(true);
+      setModalReviews([]);
+      setModalPage(1);
+      setModalHasMore(false);
+      modalPageRef.current = 1;
+    } else {
+      setModalLoadingMore(true);
+    }
     try {
-      const params = new URLSearchParams({ productIds: Array.isArray(pids) ? pids.join(',') : String(pids), startDate, endDate });
+      const params = new URLSearchParams({ productIds: Array.isArray(pids) ? pids.join(',') : String(pids), startDate, endDate, page });
       if (attr) params.set('attribute', attr);
       if (sent) params.set('sentiment', sent);
       const res = await fetch(`/api/reviews/period?${params}`);
       const data = await res.json();
-      setModalReviews(data.reviews || []);
+      const fetched = data.reviews || [];
+      setModalHasMore(fetched.length === 10);
+      setModalReviews(prev => replace ? fetched : [...prev, ...fetched]);
     } catch (err) { console.error('팝업 로드 실패:', err); }
-    finally { setModalLoading(false); }
+    finally { setModalLoading(false); setModalLoadingMore(false); }
+  };
+  loadModalReviewsRef.current = loadModalReviews;
+
+  const openReviewModal = async (title, pids, attr, sent) => {
+    modalParamsRef.current = { pids, attr, sent };
+    modalHasMoreRef.current = false;
+    modalLoadingMoreRef.current = false;
+    setModalTitle(title);
+    setShowReviewModal(true);
+    await loadModalReviews(pids, attr, sent, 1, true);
   };
 
   const handleRegenSubmit = () => {
@@ -843,7 +968,7 @@ export default function ReviewAnalysisPage() {
             </tbody>
           </table>
         </div>
-        <div className="ra-voc-detail-panel glass-panel">
+        <div ref={vocScrollRef} className="ra-voc-detail-panel glass-panel">
           {!selectedVocRow ? (
             <div className="ra-empty-state">왼쪽에서 속성을 선택하세요.</div>
           ) : (
@@ -885,6 +1010,12 @@ export default function ReviewAnalysisPage() {
                 {vocDetailLoading && <div className="ra-empty-state">불러오는 중...</div>}
                 {!vocDetailLoading && !vocDetailReviews.length && <div className="ra-empty-state">리뷰가 없습니다.</div>}
                 {!vocDetailLoading && vocDetailReviews.map((r, i) => renderReviewCard(r, i))}
+                {vocLoadingMore && (
+                  <div style={{ textAlign: 'center', padding: '1rem', color: '#64748b', fontSize: '0.85rem' }}>
+                    <Loader2 size={18} className="ra-spinner" style={{ display: 'inline-block', marginRight: '0.4rem' }} />
+                    더 불러오는 중...
+                  </div>
+                )}
               </div>
             </>
           )}
@@ -1115,11 +1246,17 @@ export default function ReviewAnalysisPage() {
               ))}
             </div>
           )}
-          <div className="ra-modal-body" style={{ overflowY: 'auto' }}>
+          <div ref={modalScrollRef} className="ra-modal-body" style={{ overflowY: 'auto' }}>
             {modalLoading
               ? <div className="ra-loading"><Loader2 className="ra-spinner" /><span>리뷰 로드 중...</span></div>
               : modalReviews.map((r, i) => renderReviewCard(r, i))
             }
+            {modalLoadingMore && (
+              <div style={{ textAlign: 'center', padding: '1rem', color: '#64748b', fontSize: '0.85rem' }}>
+                <Loader2 size={18} className="ra-spinner" style={{ display: 'inline-block', marginRight: '0.4rem' }} />
+                더 불러오는 중...
+              </div>
+            )}
           </div>
         </div>
       </div>
