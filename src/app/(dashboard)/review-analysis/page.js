@@ -45,6 +45,7 @@ export default function ReviewAnalysisPage() {
   const [vocData, setVocData] = useState([]);
   const [marketingData, setMarketingData] = useState(null);
   const [marketingOverrides, setMarketingOverrides] = useState({});
+  const marketingLoadedKey = useRef(null); // 로드된 제품 key 추적 (탭 재진입 skip용)
 
   const [loading, setLoading] = useState(false);
 
@@ -298,9 +299,9 @@ export default function ReviewAnalysisPage() {
           break;
         }
         case 'marketing': {
-          // 이미 로드된 리포트가 있으면 탭 재진입 시 API 재호출 스킵
-          if (marketingData && !opts.force) break;
-          // 대시보드데이터 없으면 먼저 로드한 뒤 marketing 요청
+          // 탭 재진입 시 동일 제품이면 skip, 제품/날짜 바뀌면 재조회
+          if (marketingData && marketingLoadedKey.current === ids && !opts.force) break;
+          // 대시보드 데이터 없으면 먼저 로드
           let freshDash = dashboardDataRef.current;
           if (!freshDash.length) {
             const dRes = await fetch(`${base}/dashboard?productIds=${ids}&startDate=${startDate}&endDate=${endDate}`);
@@ -308,22 +309,30 @@ export default function ReviewAnalysisPage() {
             freshDash = dJson.data || [];
             setDashAndRef(freshDash);
           }
+          // 마케팅 리포트는 항상 전체 누적 데이터 기준 (날짜 필터 무시) → 캐시 키 일치
+          const allStart = '2020-01-01';
+          const allEnd = new Date().toISOString().slice(0, 10);
           if (opts.force && opts.productId) {
-            // 재생성 시 전체 누적 데이터 기준 (기간 필터 무시)
-            const allStart = '2020-01-01';
-            const allEnd = new Date().toISOString().slice(0, 10);
             const url = `${base}/marketing?productIds=${opts.productId}&startDate=${allStart}&endDate=${allEnd}&force=true`;
             const res = await fetch(url);
             const json = await res.json();
             const prod = json.data?.products?.[0];
             if (prod) {
               setMarketingOverrides(prev => ({ ...prev, [opts.productId]: { ...prod, updatedAt: json.updatedAt } }));
+              // marketingData에도 반영해 loadedKey 유지
+              setMarketingData(prev => prev ? {
+                ...prev,
+                products: prev.products?.map(p => String(p.productId) === String(opts.productId) ? { ...p, ...prod } : p)
+              } : prev);
             }
           } else {
-            const url = `${base}/marketing?productIds=${ids}&startDate=${startDate}&endDate=${endDate}`;
+            const url = `${base}/marketing?productIds=${ids}&startDate=${allStart}&endDate=${allEnd}`;
             const res = await fetch(url);
             const json = await res.json();
-            setMarketingData(json.data ? { ...json.data, cached: json.cached, updatedAt: json.updatedAt } : null);
+            if (json.data) {
+              setMarketingData({ ...json.data, cached: json.cached, updatedAt: json.updatedAt });
+              marketingLoadedKey.current = ids;
+            }
           }
           break;
         }
