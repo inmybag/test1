@@ -517,7 +517,7 @@ input[type="date"] {
 .ra-modal-header button { background: rgba(255,255,255,0.05); border: none; color: #fff; padding: 0.5rem; border-radius: 50%; cursor: pointer; transition: 0.2s; }
 .ra-modal-header button:hover { background: rgba(239, 68, 68, 0.2); color: #ef4444; }
 
-.ra-modal-body { padding: 2.5rem; overflow-y: auto; flex: 1; }
+.ra-modal-body { padding: 2.5rem; overflow-y: auto; flex: 1; min-height: 0; }
 
 /* 워드클라우드 태그 스타일 (지능형 UI) */
 .ra-wordcloud-box {

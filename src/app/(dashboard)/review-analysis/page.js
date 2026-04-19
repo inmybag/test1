@@ -206,26 +206,7 @@ export default function ReviewAnalysisPage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [periodHasMore, periodLoadingMore]);
 
-  // VoC 상세 스크롤 리스너
-  useEffect(() => {
-    if (activeTab !== 'voc') return;
-    const container = vocScrollRef.current;
-    if (!container) return;
-    const handleScroll = () => {
-      if (vocLoadingMoreRef.current || !vocHasMoreRef.current) return;
-      const { scrollTop, scrollHeight, clientHeight } = container;
-      if (scrollTop + clientHeight >= scrollHeight - 100) {
-        vocLoadingMoreRef.current = true;
-        const nextPage = vocPageRef.current + 1;
-        vocPageRef.current = nextPage;
-        setVocPage(nextPage);
-        loadVocDetailRef.current?.(selectedVocRowRef.current, vocDetailFilterRef.current, nextPage, false);
-      }
-    };
-    container.addEventListener('scroll', handleScroll);
-    return () => container.removeEventListener('scroll', handleScroll);
-  }, [activeTab]);
-
+  // VoC/모달 무한 스크롤 — auto-load (컨테이너가 꽉 안 찬 경우)
   useEffect(() => {
     if (!vocHasMore || vocLoadingMore || activeTab !== 'voc') return;
     const container = vocScrollRef.current;
@@ -238,27 +219,6 @@ export default function ReviewAnalysisPage() {
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [vocHasMore, vocLoadingMore]);
-
-  // 모달 스크롤 리스너
-  useEffect(() => {
-    if (!showReviewModal) return;
-    const container = modalScrollRef.current;
-    if (!container) return;
-    const handleScroll = () => {
-      if (modalLoadingMoreRef.current || !modalHasMoreRef.current) return;
-      const { scrollTop, scrollHeight, clientHeight } = container;
-      if (scrollTop + clientHeight >= scrollHeight - 100) {
-        modalLoadingMoreRef.current = true;
-        const nextPage = modalPageRef.current + 1;
-        modalPageRef.current = nextPage;
-        setModalPage(nextPage);
-        const { pids, attr, sent } = modalParamsRef.current;
-        loadModalReviewsRef.current?.(pids, attr, sent, nextPage, false);
-      }
-    };
-    container.addEventListener('scroll', handleScroll);
-    return () => container.removeEventListener('scroll', handleScroll);
-  }, [showReviewModal]);
 
   useEffect(() => {
     if (!modalHasMore || modalLoadingMore || !showReviewModal) return;
@@ -968,7 +928,21 @@ export default function ReviewAnalysisPage() {
             </tbody>
           </table>
         </div>
-        <div ref={vocScrollRef} className="ra-voc-detail-panel glass-panel">
+        <div
+          ref={vocScrollRef}
+          className="ra-voc-detail-panel glass-panel"
+          onScroll={(e) => {
+            if (vocLoadingMoreRef.current || !vocHasMoreRef.current) return;
+            const { scrollTop, scrollHeight, clientHeight } = e.currentTarget;
+            if (scrollTop + clientHeight >= scrollHeight - 100) {
+              vocLoadingMoreRef.current = true;
+              const nextPage = vocPageRef.current + 1;
+              vocPageRef.current = nextPage;
+              setVocPage(nextPage);
+              loadVocDetailRef.current?.(selectedVocRowRef.current, vocDetailFilterRef.current, nextPage, false);
+            }
+          }}
+        >
           {!selectedVocRow ? (
             <div className="ra-empty-state">왼쪽에서 속성을 선택하세요.</div>
           ) : (
@@ -1246,7 +1220,23 @@ export default function ReviewAnalysisPage() {
               ))}
             </div>
           )}
-          <div ref={modalScrollRef} className="ra-modal-body" style={{ overflowY: 'auto' }}>
+          <div
+            ref={modalScrollRef}
+            className="ra-modal-body"
+            style={{ overflowY: 'auto' }}
+            onScroll={(e) => {
+              if (modalLoadingMoreRef.current || !modalHasMoreRef.current) return;
+              const { scrollTop, scrollHeight, clientHeight } = e.currentTarget;
+              if (scrollTop + clientHeight >= scrollHeight - 100) {
+                modalLoadingMoreRef.current = true;
+                const nextPage = modalPageRef.current + 1;
+                modalPageRef.current = nextPage;
+                setModalPage(nextPage);
+                const { pids, attr, sent } = modalParamsRef.current;
+                loadModalReviewsRef.current?.(pids, attr, sent, nextPage, false);
+              }
+            }}
+          >
             {modalLoading
               ? <div className="ra-loading"><Loader2 className="ra-spinner" /><span>리뷰 로드 중...</span></div>
               : modalReviews.map((r, i) => renderReviewCard(r, i))
