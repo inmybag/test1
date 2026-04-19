@@ -298,13 +298,13 @@ export default function ReviewAnalysisPage() {
           break;
         }
         case 'marketing': {
-          // 대시보드 데이터 없으면 먼저 로드
-          let freshDash = dashboardDataRef.current;
-          if (!freshDash.length) {
+          // 선택된 제품 중 대시보드 데이터 누락된 게 있으면 전체 재조회
+          const curDash = dashboardDataRef.current;
+          const missingDashPids = selectedProducts.filter(pid => !curDash.find(d => String(d.productId) === String(pid)));
+          if (missingDashPids.length > 0) {
             const dRes = await fetch(`${base}/dashboard?productIds=${ids}&startDate=${startDate}&endDate=${endDate}`);
             const dJson = await dRes.json();
-            freshDash = dJson.data || [];
-            setDashAndRef(freshDash);
+            setDashAndRef(dJson.data || []);
           }
 
           if (opts.force && opts.productId) {
