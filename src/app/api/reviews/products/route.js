@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { addReviewProduct, deleteReviewProduct, getReviewProducts, initDb } from '@/lib/db';
 import { spawn } from 'child_process';
+import fs from 'fs';
 
 // 플랫폼 자동 감지
 function detectPlatform(url) {
@@ -47,7 +48,7 @@ export async function POST(request) {
           {
             cwd: process.cwd(),
             detached: true,
-            stdio: ['ignore', require('fs').openSync(logPath, 'a'), require('fs').openSync(logPath, 'a')],
+            stdio: ['ignore', fs.openSync(logPath, 'a'), fs.openSync(logPath, 'a')],
             env: process.env, // 현재 환경변수 그대로 전달 (.env.local 포함)
           }
         );
