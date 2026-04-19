@@ -593,10 +593,12 @@ input[type="date"] {
 .ra-sentiment-bar { display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.75rem; }
 .ra-sentiment-label { width: 40px; font-weight: 700; }
 .ra-sentiment-label.positive, .ra-sentiment-pct.positive { color: #60a5fa; }
+.ra-sentiment-label.neutral, .ra-sentiment-pct.neutral { color: #94a3b8; }
 .ra-sentiment-label.negative, .ra-sentiment-pct.negative { color: #f87171; }
 .ra-bar-track { flex: 1; height: 10px; background: rgba(255,255,255,0.05); border-radius: 5px; overflow: hidden; }
 .ra-bar-fill { height: 100%; border-radius: 5px; }
 .ra-bar-fill.positive { background: linear-gradient(90deg, #3b82f6, #60a5fa); }
+.ra-bar-fill.neutral { background: linear-gradient(90deg, #475569, #94a3b8); }
 .ra-bar-fill.negative { background: linear-gradient(90deg, #ef4444, #f87171); }
 .ra-sentiment-pct { font-weight: 700; min-width: 40px; text-align: right; }
 

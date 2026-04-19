@@ -382,8 +382,10 @@ export default function ReviewAnalysisPage() {
           const total = parseInt(item.totalReviews) || 0;
           const pos = parseInt(item.positiveCount) || 0;
           const neg = parseInt(item.negativeCount) || 0;
+          const neu = parseInt(item.neutralCount) || 0;
           const posRate = total > 0 ? Math.round(pos / total * 100) : 0;
           const negRate = total > 0 ? Math.round(neg / total * 100) : 0;
+          const neuRate = total > 0 ? Math.round(neu / total * 100) : 0;
           const todayCount = parseInt(item.todayCount) || 0;
           const allTimeCount = parseInt(item.allTimeCount) || 0;
           const topPos = item.topAttributes?.positive || [];
@@ -416,6 +418,11 @@ export default function ReviewAnalysisPage() {
                     <span className="ra-sentiment-label positive">긍정</span>
                     <div className="ra-bar-track"><div className="ra-bar-fill positive" style={{ width: `${posRate}%` }} /></div>
                     <span className="ra-sentiment-pct positive">{posRate}%</span>
+                  </div>
+                  <div className="ra-sentiment-bar">
+                    <span className="ra-sentiment-label neutral">중립</span>
+                    <div className="ra-bar-track"><div className="ra-bar-fill neutral" style={{ width: `${neuRate}%` }} /></div>
+                    <span className="ra-sentiment-pct neutral">{neuRate}%</span>
                   </div>
                   <div className="ra-sentiment-bar">
                     <span className="ra-sentiment-label negative">부정</span>
