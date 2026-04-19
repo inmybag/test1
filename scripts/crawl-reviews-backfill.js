@@ -55,6 +55,7 @@ async function fetchNativeCafe24Reviews(baseUrl, productNo, cutoffDate) {
   const reviews = [];
 
   let boardNo = 4;
+  let thumbnailUrl = null;
   try {
     const firstPage = await axios.get(`${baseUrl}/product/detail.html?product_no=${productNo}`, {
       headers: { 'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36' },
@@ -62,12 +63,15 @@ async function fetchNativeCafe24Reviews(baseUrl, productNo, cutoffDate) {
     });
     const boardMatch = firstPage.data.match(/CAFE24\.BOARD\s*=\s*\{"config_(\d+)"/);
     if (boardMatch) boardNo = parseInt(boardMatch[1]);
+    const ogMatch = firstPage.data.match(/property="og:image"\s+content="([^"]+)"/) ||
+                    firstPage.data.match(/content="([^"]+)"\s+property="og:image"/);
+    if (ogMatch) thumbnailUrl = ogMatch[1];
   } catch (e) {
     console.log(`  [네이티브] 첫 페이지 로드 실패: ${e.message}`);
-    return reviews;
+    return { reviews, thumbnailUrl: null };
   }
 
-  console.log(`  [네이티브] board_no=${boardNo} 감지`);
+  console.log(`  [네이티브] board_no=${boardNo} 감지, 썸네일: ${thumbnailUrl ? '확인' : '없음'}`);
 
   let page = 1;
   let stop = false;
@@ -145,7 +149,7 @@ async function fetchNativeCafe24Reviews(baseUrl, productNo, cutoffDate) {
   }
 
   console.log(`  [네이티브] 총 ${reviews.length}건 수집 완료`);
-  return reviews;
+  return { reviews, thumbnailUrl };
 }
 
 /**
@@ -315,8 +319,14 @@ async function main() {
       // Crema 미사용 쇼핑몰이면 네이티브 HTML 스크래핑
       if (!cremaWorked) {
         console.log(`  [네이티브] Crema 미사용 쇼핑몰 감지. HTML 스크래핑으로 전환...`);
-        const nativeReviews = await fetchNativeCafe24Reviews(`https://${host}`, productNo, CUTOFF_DATE);
+        const { reviews: nativeReviews, thumbnailUrl: nativeThumb } = await fetchNativeCafe24Reviews(`https://${host}`, productNo, CUTOFF_DATE);
         allCollectedReviews.push(...nativeReviews);
+        if (!product.thumbnail_url && nativeThumb) {
+          const dc = await pool.connect();
+          try { await dc.sql`UPDATE review_products SET thumbnail_url = ${nativeThumb} WHERE id = ${product.id}`; } finally { dc.release(); }
+          product.thumbnail_url = nativeThumb;
+          console.log(`  [네이티브] 썸네일 저장: ${nativeThumb.substring(0, 60)}...`);
+        }
       }
     } else if (product.platform === 'naver') {
       console.log(`\n========================================`);
