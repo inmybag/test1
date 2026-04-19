@@ -1363,7 +1363,7 @@ export default function ReviewAnalysisPage() {
       <header className="ra-header">
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
           <div>
-            <h1 className="ra-page-title">리뷰 &amp; VoC 마켓 인사이트</h1>
+            <h1 className="ra-page-title">고객리뷰 &amp; VoC AI 분석 인사이트</h1>
             <p style={{ color: 'var(--text-dim)' }}>애경 브랜드의 시장 경쟁력을 AI로 실시간 분석합니다.</p>
           </div>
           <div className="ra-date-range">
@@ -1380,18 +1380,37 @@ export default function ReviewAnalysisPage() {
             </button>
             {showProductDropdown && (
               <div className="ra-dropdown-menu glass-panel">
-                {products.map(p => (
-                  <label key={p.id}>
-                    <input
-                      type="checkbox"
-                      checked={selectedProducts.includes(p.id)}
-                      onChange={() => setSelectedProducts(prev =>
-                        prev.includes(p.id) ? prev.filter(x => x !== p.id) : [...prev, p.id]
-                      )}
-                    />
-                    {' '}{p.productName}
-                  </label>
-                ))}
+                {products.map(p => {
+                  const isChecked = selectedProducts.includes(p.id);
+                  const platformMeta = p.platform === 'oliveyoung'
+                    ? { label: '올리브영', color: '#9dce63' }
+                    : p.platform === 'naver'
+                    ? { label: '네이버', color: '#03c75a' }
+                    : { label: '카페24', color: '#2c6ecb' };
+                  return (
+                    <label key={p.id} style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', padding: '0.6rem 0.75rem', borderRadius: '10px', cursor: 'pointer', background: isChecked ? 'rgba(157,206,99,0.08)' : 'transparent', transition: 'background 0.15s' }}>
+                      <input
+                        type="checkbox"
+                        checked={isChecked}
+                        style={{ flexShrink: 0 }}
+                        onChange={() => setSelectedProducts(prev =>
+                          prev.includes(p.id) ? prev.filter(x => x !== p.id) : [...prev, p.id]
+                        )}
+                      />
+                      {p.thumbnailUrl
+                        ? <img src={p.thumbnailUrl} alt="" style={{ width: 40, height: 40, borderRadius: 8, objectFit: 'cover', flexShrink: 0, background: '#1e293b' }} />
+                        : <div style={{ width: 40, height: 40, borderRadius: 8, background: '#1e293b', flexShrink: 0 }} />
+                      }
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem', minWidth: 0 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                          <span style={{ fontSize: '0.7rem', fontWeight: 700, padding: '0.1rem 0.4rem', borderRadius: 4, background: platformMeta.color, color: '#fff' }}>{platformMeta.label}</span>
+                          <span style={{ fontSize: '0.75rem', color: '#94a3b8' }}>{p.brandName}</span>
+                        </div>
+                        <span style={{ fontSize: '0.85rem', fontWeight: 600, color: '#fff', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '200px' }}>{p.productName}</span>
+                      </div>
+                    </label>
+                  );
+                })}
               </div>
             )}
           </div>
@@ -1400,7 +1419,9 @@ export default function ReviewAnalysisPage() {
               const prod = products.find(p => p.id === pid);
               if (!prod) return null;
               return (
-                <div key={pid} style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem', padding: '0.5rem 1rem', background: 'rgba(255,255,255,0.08)', border: '1px solid #9dce63', color: '#9dce63', borderRadius: '50px', fontSize: '0.85rem', fontWeight: 600 }}>
+                <div key={pid} style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem', padding: '0.4rem 0.75rem 0.4rem 0.4rem', background: 'rgba(255,255,255,0.08)', border: '1px solid #9dce63', color: '#9dce63', borderRadius: '50px', fontSize: '0.85rem', fontWeight: 600 }}>
+                  {prod.thumbnailUrl && <img src={prod.thumbnailUrl} alt="" style={{ width: 24, height: 24, borderRadius: '50%', objectFit: 'cover' }} />}
+                  <span style={{ fontSize: '0.72rem', color: '#94a3b8', fontWeight: 400 }}>{prod.brandName}</span>
                   {prod.productName}
                   <button onClick={() => removeProduct(pid)} style={{ background: 'none', border: 'none', color: '#9dce63', cursor: 'pointer', padding: 0 }}><X size={14} /></button>
                 </div>
