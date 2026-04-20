@@ -14,7 +14,7 @@ export async function POST(req) {
     const systemInstruction = `기존 티슬로 향수 12종 및 13번째 미모사 향을 포함하여 총 13종의 향을 추천하는 소믈리에입니다.`;
 
     const model = genAI.getGenerativeModel({ 
-      model: "gemini-1.5-flash",
+      model: "gemini-2.5-flash-lite",
       systemInstruction: systemInstruction,
     });
 
