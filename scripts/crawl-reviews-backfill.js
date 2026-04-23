@@ -328,6 +328,77 @@ async function main() {
           console.log(`  [네이티브] 썸네일 저장: ${nativeThumb.substring(0, 60)}...`);
         }
       }
+    } else if (product.platform === 'musinsa') {
+      console.log(`\n========================================`);
+      console.log(`[백필] (Musinsa) ${product.brand_name} ${product.product_name}`);
+      console.log(`========================================`);
+
+      const goodsMatch = product.page_url.match(/products\/(\d+)/);
+      if (!goodsMatch) continue;
+      const goodsNo = goodsMatch[1];
+
+      const page = await browser.newPage();
+      await page.setUserAgent('Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36');
+      
+      console.log('[백필] 무신사 페이지 방문 중...');
+      await page.goto(product.page_url, { waitUntil: 'networkidle2', timeout: 60000 });
+
+      if (!product.thumbnail_url) {
+        const thumb = await page.evaluate(() => document.querySelector('meta[property="og:image"]')?.content);
+        if (thumb) {
+          const dc = await pool.connect();
+          try { await dc.sql`UPDATE review_products SET thumbnail_url = ${thumb} WHERE id = ${product.id}`; } finally { dc.release(); }
+          product.thumbnail_url = thumb;
+        }
+      }
+
+      let pageNum = 0;
+      while (true) {
+        console.log(`  [API] 페이지 ${pageNum + 1} 호출 중...`);
+        const apiResult = await page.evaluate(async (goodsNo, pageNum) => {
+          try {
+            const res = await fetch(`https://goods.musinsa.com/api2/review/v1/view/list?page=${pageNum}&pageSize=20&goodsNo=${goodsNo}&sort=newest_desc`, {
+              method: 'GET',
+              headers: { 
+                'Accept': 'application/json',
+                'Referer': `https://www.musinsa.com/products/${goodsNo}`
+              }
+            });
+            return await res.json();
+          } catch(e) { return { error: e.message }; }
+        }, goodsNo, pageNum);
+
+        if (apiResult.error || !apiResult.data || !apiResult.data.list || apiResult.data.list.length === 0) break;
+
+        let pageEnd = false;
+        for (const raw of apiResult.data.list) {
+          let reviewDate = raw.createDate ? raw.createDate.split('T')[0] : null;
+          if (!reviewDate || reviewDate < CUTOFF_DATE) { pageEnd = true; continue; }
+
+          let mediaUrls = raw.images ? raw.images.map(img => {
+            const url = img.imageUrl || '';
+            return url.startsWith('http') ? url : 'https://image.msscdn.net' + url;
+          }) : [];
+          
+          allCollectedReviews.push({
+            review_text: raw.content || '',
+            rating: parseInt(raw.grade) || 5,
+            reviewer_nickname: raw.userProfileInfo?.userNickName || '익명',
+            review_date: reviewDate,
+            extra_info: { 
+              option: raw.goodsOption || '',
+              skinType: raw.userProfileInfo?.skinType || '',
+              skinTone: raw.userProfileInfo?.skinTone || ''
+            },
+            media_urls: mediaUrls
+          });
+        }
+        if (pageEnd) break;
+        if (pageNum >= 20) break;
+        pageNum++;
+        await new Promise(r => setTimeout(r, 800));
+      }
+      await page.close();
     } else if (product.platform === 'naver') {
       console.log(`\n========================================`);
       console.log(`[백필] (Naver) ${product.brand_name} ${product.product_name}`);

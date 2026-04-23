@@ -373,10 +373,12 @@ async function main() {
       const page = await browser.newPage();
       await page.setUserAgent('Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36');
 
+      console.log('[일일크롤러] 무신사 페이지 방문 중...');
+      await page.goto(product.page_url, { waitUntil: 'networkidle2', timeout: 60000 });
+
       // 썸네일
       if (!product.thumbnail_url) {
         console.log('[일일크롤러] 무신사 썸네일 추출 중...');
-        await page.goto(product.page_url, { waitUntil: 'networkidle2', timeout: 60000 });
         const thumb = await page.evaluate(() => document.querySelector('meta[property="og:image"]')?.content);
         if (thumb) {
           const dc = await pool.connect();
