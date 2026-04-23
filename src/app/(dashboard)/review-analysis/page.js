@@ -511,7 +511,13 @@ export default function ReviewAnalysisPage() {
           {r.rating && (
             <span className="ra-review-rating"><Star size={13} fill="#fbbf24" /> {r.rating}</span>
           )}
-          {r.platform && <span className="ra-review-platform">{r.platform}</span>}
+          {r.platform && (
+            <span className="ra-review-platform">
+              {r.platform === 'oliveyoung' ? '올리브영' : 
+               r.platform === 'naver' ? '네이버' : 
+               r.platform === 'musinsa' ? '무신사' : '자사몰'}
+            </span>
+          )}
           {r.brandName && <span className="ra-review-brand-tag">{r.brandName}</span>}
           {r.productName && <span className="ra-review-pname-tag">{r.productName}</span>}
         </div>
@@ -1390,6 +1396,8 @@ export default function ReviewAnalysisPage() {
                     ? { label: '올리브영', color: '#9dce63' }
                     : p.platform === 'naver'
                     ? { label: '네이버', color: '#03c75a' }
+                    : p.platform === 'musinsa'
+                    ? { label: '무신사', color: '#000000' }
                     : { label: '카페24', color: '#2c6ecb' };
                   return (
                     <label key={p.id} style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', padding: '0.6rem 0.75rem', borderRadius: '10px', cursor: 'pointer', background: isChecked ? 'rgba(157,206,99,0.08)' : 'transparent', transition: 'background 0.15s' }}>

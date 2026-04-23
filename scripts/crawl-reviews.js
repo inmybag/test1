@@ -357,6 +357,128 @@ async function main() {
       continue;
     }
 
+    // Musinsa(무신사) 처리
+    if (product.platform === 'musinsa') {
+      console.log(`\n========================================`);
+      console.log(`[일일크롤러] ${product.brand_name} ${product.product_name}`);
+      console.log(`========================================`);
+
+      const goodsMatch = product.page_url.match(/products\/(\d+)/);
+      if (!goodsMatch) {
+        console.log('[일일크롤러] 무신사 상품 번호(goodsNo) 추출 실패');
+        continue;
+      }
+      const goodsNo = goodsMatch[1];
+
+      const page = await browser.newPage();
+      await page.setUserAgent('Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36');
+
+      // 썸네일
+      if (!product.thumbnail_url) {
+        console.log('[일일크롤러] 무신사 썸네일 추출 중...');
+        await page.goto(product.page_url, { waitUntil: 'networkidle2', timeout: 60000 });
+        const thumb = await page.evaluate(() => document.querySelector('meta[property="og:image"]')?.content);
+        if (thumb) {
+          const dc = await pool.connect();
+          try { await dc.sql`UPDATE review_products SET thumbnail_url = ${thumb} WHERE id = ${product.id}`; } finally { dc.release(); }
+          product.thumbnail_url = thumb;
+          console.log(`[일일크롤러] 무신사 썸네일 저장: ${thumb.substring(0, 60)}...`);
+        }
+      }
+
+      const allReviews = [];
+      let pageNum = 0; // 무신사는 0페이지부터 시작
+
+      while (true) {
+        console.log(`  [API] 페이지 ${pageNum + 1} 호출 중...`);
+        
+        const apiResult = await page.evaluate(async (goodsNo, pageNum) => {
+          try {
+            const res = await fetch(`https://goods.musinsa.com/api2/review/v1/view/list?page=${pageNum}&pageSize=20&goodsNo=${goodsNo}&sort=newest_desc`, {
+              method: 'GET',
+              headers: { 
+                'Accept': 'application/json',
+                'Referer': `https://www.musinsa.com/products/${goodsNo}`
+              }
+            });
+            return await res.json();
+          } catch(e) { return { error: e.message }; }
+        }, goodsNo, pageNum);
+
+        if (apiResult.error || !apiResult.data || !apiResult.data.list || apiResult.data.list.length === 0) {
+          console.log(`  [API] 더 이상 리뷰 없음 또는 오류.`);
+          break;
+        }
+
+        const reviews = apiResult.data.list;
+        console.log(`  [API] ${reviews.length}건 수취`);
+
+        for (const raw of reviews) {
+          let reviewDate = raw.createDate ? raw.createDate.split('T')[0] : null;
+          if (!reviewDate) continue;
+
+          // 2025년 이후 데이터만 수집 (공통 기준)
+          if (reviewDate < '2025-01-01') continue;
+
+          let mediaUrls = raw.images ? raw.images.map(img => {
+            const url = img.imageUrl || '';
+            return url.startsWith('http') ? url : 'https://image.msscdn.net' + url;
+          }) : [];
+          
+          allReviews.push({
+            review_text: raw.content || '',
+            rating: parseInt(raw.grade) || 5,
+            reviewer_nickname: raw.userProfileInfo?.userNickName || '익명',
+            review_date: reviewDate,
+            extra_info: { 
+              option: raw.goodsOption || '',
+              skinType: raw.userProfileInfo?.skinType || '',
+              skinTone: raw.userProfileInfo?.skinTone || ''
+            },
+            media_urls: mediaUrls
+          });
+        }
+
+        if (pageNum >= 9) break; // 최대 10페이지 (200건)
+        pageNum++;
+        await new Promise(r => setTimeout(r, 800));
+      }
+
+      await page.close();
+      
+      console.log(`\n[일일크롤러] 총 ${allReviews.length}건 수집`);
+      if (!allReviews.length) { console.log('[일일크롤러] 수집 리뷰 없음.'); continue; }
+
+      console.log(`\n[일일크롤러] Gemini AI 감성분석 시작...`);
+      const analyzed = await analyzeWithGemini(allReviews);
+      console.log(`[일일크롤러] 분석 완료: ${analyzed.length}건`);
+
+      const dbClient = await pool.connect();
+      let saved = 0;
+      try {
+        for (const r of analyzed) {
+          try {
+            await dbClient.sql`
+              INSERT INTO product_reviews (product_id, review_date, rating, review_text, reviewer_nickname, extra_info, media_urls, sentiment, sentiment_score, attributes, source_highlight)
+              VALUES (${product.id}, ${r.review_date}, ${r.rating}, ${r.review_text}, ${r.reviewer_nickname},
+                ${JSON.stringify(r.extra_info || {})}, ${JSON.stringify(r.media_urls || [])},
+                ${r.sentiment}, ${r.sentiment_score}, ${JSON.stringify(r.attributes || [])}, ${JSON.stringify(r.source_highlight || [])}
+              )
+              ON CONFLICT (product_id, review_date, COALESCE(reviewer_nickname, ''), LEFT(COALESCE(review_text, ''), 100))
+              DO UPDATE SET 
+                media_urls = EXCLUDED.media_urls,
+                extra_info = EXCLUDED.extra_info,
+                attributes = EXCLUDED.attributes,
+                source_highlight = EXCLUDED.source_highlight,
+                rating = EXCLUDED.rating`;
+            saved++;
+          } catch(e) {}
+        }
+        console.log(`[일일크롤러] DB 저장: ${saved}건`);
+      } finally { dbClient.release(); }
+      continue;
+    }
+
     // Naver 스마트스토어 처리
     if (product.platform === 'naver') {
       console.log(`\n========================================`);

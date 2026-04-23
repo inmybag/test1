@@ -6,6 +6,7 @@ import { X, Plus, Trash2, Globe, ExternalLink } from 'lucide-react';
 function detectPlatform(url) {
   if (url.includes('oliveyoung.co.kr')) return { name: '올리브영', color: '#9dce63' };
   if (url.includes('smartstore.naver.com') || url.includes('brand.naver.com') || url.includes('shopping.naver.com')) return { name: '네이버', color: '#03c75a' };
+  if (url.includes('musinsa.com')) return { name: '무신사', color: '#000000' };
   return { name: '카페24', color: '#2c6ecb' };
 }
 
