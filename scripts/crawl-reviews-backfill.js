@@ -636,80 +636,80 @@ async function main() {
         } catch(e) { console.log(`  [Amazon] 썸네일 로드 실패: ${e.message}`); }
       }
 
-      let pageNum = 1;
-      while (pageNum <= 20) {
-        console.log(`  [Amazon] 리뷰 페이지 ${pageNum} 호출 중...`);
-        try {
-          await page.goto(
-            `https://www.amazon.com/product-reviews/${asin}/?sortBy=recent&pageNumber=${pageNum}`,
-            { waitUntil: 'networkidle2', timeout: 60000 }
-          );
-          // 스크롤하여 lazy load 이미지 트리거
-          await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
-          await new Promise(r => setTimeout(r, 1500));
-          await page.evaluate(() => window.scrollTo(0, 0));
-          await new Promise(r => setTimeout(r, 500));
+      const SPANISH_MONTHS = { enero:0,febrero:1,marzo:2,abril:3,mayo:4,junio:5,julio:6,agosto:7,septiembre:8,octubre:9,noviembre:10,diciembre:11 };
+      const parseAmazonDate = (dateText) => {
+        const enMatch = dateText.match(/on (\w+ \d+, \d{4})/);
+        if (enMatch) { const d = new Date(enMatch[1]); if (!isNaN(d.getTime())) return d.toISOString().split('T')[0]; }
+        const esMatch = dateText.match(/el (\d+) de (\w+) de (\d{4})/i);
+        if (esMatch) { const m = SPANISH_MONTHS[esMatch[2].toLowerCase()]; if (m !== undefined) { const d = new Date(parseInt(esMatch[3]), m, parseInt(esMatch[1])); if (!isNaN(d.getTime())) return d.toISOString().split('T')[0]; } }
+        const jaMatch = dateText.match(/(\d{4})年(\d{1,2})月(\d{1,2})日/);
+        if (jaMatch) { const d = new Date(parseInt(jaMatch[1]), parseInt(jaMatch[2])-1, parseInt(jaMatch[3])); if (!isNaN(d.getTime())) return d.toISOString().split('T')[0]; }
+        return null;
+      };
+      // 첫 페이지 로드
+      await page.goto(
+        `https://www.amazon.com/product-reviews/${asin}/?sortBy=recent`,
+        { waitUntil: 'networkidle2', timeout: 60000 }
+      );
+      await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
+      await new Promise(r => setTimeout(r, 1500));
 
-          const reviews = await page.evaluate(() => {
-            const items = [...document.querySelectorAll('[data-hook="review"]')];
-            return items.map(el => {
-              const ratingEl = el.querySelector('[data-hook="review-star-rating"] .a-icon-alt') ||
-                               el.querySelector('i[data-hook*="star"] .a-icon-alt');
-              const rating = ratingEl ? parseFloat(ratingEl.textContent) : 5;
-              const dateText = el.querySelector('[data-hook="review-date"]')?.textContent?.trim() || '';
-              const body = el.querySelector('[data-hook="review-body"] span')?.textContent?.trim() || '';
-              const titleEls = [...el.querySelectorAll('[data-hook="review-title"] span')];
-              const title = titleEls.map(s => s.textContent.trim()).filter(t => !t.match(/^\d+(\.\d+)? out of/)).join(' ').trim();
-              const author = el.querySelector('.a-profile-name')?.textContent?.trim() || '익명';
-              const images = [...el.querySelectorAll('img.review-image-tile')].map(img => {
-                const url = img.src || img.getAttribute('data-src') || img.getAttribute('data-a-img-url') || '';
-                return url.replace(/\._[A-Z]{2}\d+(\.[A-Z]{2}\d+)*(?=\.)/g, '');
-              }).filter(url => url && url.startsWith('http'));
-              const verified = !!el.querySelector('[data-hook="avp-badge"]');
-              return { rating, dateText, body, title, author, images, verified };
-            });
+      let processedCount = 0;
+      let reachedCutoff = false;
+      const amazonCutoff = getDateDaysAgo(365);
+      let iteration = 0;
+      const MAX_ITER = 30;
+
+      while (!reachedCutoff && iteration < MAX_ITER) {
+        // 현재 페이지에서 아직 처리 안 한 리뷰만 추출
+        const newRaws = await page.evaluate((startIdx) => {
+          const items = [...document.querySelectorAll('[data-hook="review"]')];
+          return items.slice(startIdx).map(el => {
+            const ratingEl = el.querySelector('[data-hook="review-star-rating"] .a-icon-alt') || el.querySelector('i[data-hook*="star"] .a-icon-alt');
+            const rating = ratingEl ? parseFloat(ratingEl.textContent) : 5;
+            const dateText = el.querySelector('[data-hook="review-date"]')?.textContent?.trim() || '';
+            const body = el.querySelector('[data-hook="review-body"] span')?.textContent?.trim() || '';
+            const titleEls = [...el.querySelectorAll('[data-hook="review-title"] span')];
+            const title = titleEls.map(s => s.textContent.trim()).filter(t => !t.match(/^\d+(\.\d+)? out of/)).join(' ').trim();
+            const author = el.querySelector('.a-profile-name')?.textContent?.trim() || '익명';
+            const images = [...el.querySelectorAll('img.review-image-tile')].map(img => {
+              const url = img.src || img.getAttribute('data-src') || img.getAttribute('data-a-img-url') || '';
+              return url.replace(/\._[A-Z]{2}\d+(\.[A-Z]{2}\d+)*(?=\.)/g, '');
+            }).filter(url => url && url.startsWith('http'));
+            const verified = !!el.querySelector('[data-hook="avp-badge"]');
+            return { rating, dateText, body, title, author, images, verified };
           });
+        }, processedCount);
 
-          if (!reviews.length) break;
+        if (!newRaws.length && iteration > 0) break;
 
-          const SPANISH_MONTHS = { enero:0,febrero:1,marzo:2,abril:3,mayo:4,junio:5,julio:6,agosto:7,septiembre:8,octubre:9,noviembre:10,diciembre:11 };
-          const parseAmazonDate = (dateText) => {
-            // 영어: "on April 19, 2026"
-            const enMatch = dateText.match(/on (\w+ \d+, \d{4})/);
-            if (enMatch) { const d = new Date(enMatch[1]); if (!isNaN(d.getTime())) return d.toISOString().split('T')[0]; }
-            // 스페인어: "el 19 de abril de 2026"
-            const esMatch = dateText.match(/el (\d+) de (\w+) de (\d{4})/i);
-            if (esMatch) { const m = SPANISH_MONTHS[esMatch[2].toLowerCase()]; if (m !== undefined) { const d = new Date(parseInt(esMatch[3]), m, parseInt(esMatch[1])); if (!isNaN(d.getTime())) return d.toISOString().split('T')[0]; } }
-            // 일본어: "2026年4月19日"
-            const jaMatch = dateText.match(/(\d{4})年(\d{1,2})月(\d{1,2})日/);
-            if (jaMatch) { const d = new Date(parseInt(jaMatch[1]), parseInt(jaMatch[2])-1, parseInt(jaMatch[3])); if (!isNaN(d.getTime())) return d.toISOString().split('T')[0]; }
-            return null;
-          };
-          let pageEnd = false;
-          for (const raw of reviews) {
-            const reviewDate = parseAmazonDate(raw.dateText);
-            // 날짜 파싱 실패시 skip만 하고 페이지 순회는 계속
-            if (!reviewDate) { continue; }
-            // Amazon 백필은 1년치 수집 (일반 30일 컷오프 대신)
-            const amazonCutoff = getDateDaysAgo(365);
-            if (reviewDate < amazonCutoff) { pageEnd = true; continue; }
-
-            allCollectedReviews.push({
-              review_text: [raw.title, raw.body].filter(Boolean).join('. '),
-              rating: Math.round(raw.rating),
-              reviewer_nickname: raw.author,
-              review_date: reviewDate,
-              extra_info: { verified: raw.verified },
-              media_urls: raw.images
-            });
-          }
-          if (pageEnd) break;
-        } catch(e) {
-          console.log(`  [Amazon] 페이지 ${pageNum} 오류: ${e.message}`);
-          break;
+        for (const raw of newRaws) {
+          const reviewDate = parseAmazonDate(raw.dateText);
+          if (!reviewDate) continue;
+          if (reviewDate < amazonCutoff) { reachedCutoff = true; continue; }
+          allCollectedReviews.push({
+            review_text: [raw.title, raw.body].filter(Boolean).join('. '),
+            rating: Math.round(raw.rating),
+            reviewer_nickname: raw.author,
+            review_date: reviewDate,
+            extra_info: { verified: raw.verified },
+            media_urls: raw.images
+          });
         }
-        pageNum++;
-        await new Promise(r => setTimeout(r, 1500));
+        processedCount += newRaws.length;
+        console.log(`  [Amazon] ${processedCount}건 처리됨 (수집: ${allCollectedReviews.length}건)`);
+
+        if (reachedCutoff) break;
+
+        // "Show more" 버튼 클릭
+        const hasMore = await page.$('[data-hook="show-more-button"]');
+        if (!hasMore) break;
+        await page.evaluate(() => document.querySelector('[data-hook="show-more-button"]').click());
+        await new Promise(r => setTimeout(r, 2500));
+        await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
+        await new Promise(r => setTimeout(r, 1000));
+
+        iteration++;
       }
       await stealthBrowser.close();
     } else {
