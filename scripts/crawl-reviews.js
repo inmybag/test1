@@ -386,7 +386,7 @@ async function main() {
                 ${JSON.stringify(r.extra_info || {})}, ${JSON.stringify(r.media_urls || [])},
                 ${r.sentiment}, ${r.sentiment_score}, ${JSON.stringify(r.attributes || [])}, ${JSON.stringify(r.source_highlight || [])}
               )
-              ON CONFLICT (product_id, review_date, COALESCE(reviewer_nickname, ''), LEFT(COALESCE(review_text, ''), 100))
+              ON CONFLICT (product_id, COALESCE(reviewer_nickname, ''), review_date)
               DO UPDATE SET 
                 media_urls = EXCLUDED.media_urls,
                 extra_info = EXCLUDED.extra_info,
@@ -510,7 +510,7 @@ async function main() {
                 ${JSON.stringify(r.extra_info || {})}, ${JSON.stringify(r.media_urls || [])},
                 ${r.sentiment}, ${r.sentiment_score}, ${JSON.stringify(r.attributes || [])}, ${JSON.stringify(r.source_highlight || [])}
               )
-              ON CONFLICT (product_id, review_date, COALESCE(reviewer_nickname, ''), LEFT(COALESCE(review_text, ''), 100))
+              ON CONFLICT (product_id, COALESCE(reviewer_nickname, ''), review_date)
               DO UPDATE SET 
                 media_urls = EXCLUDED.media_urls,
                 extra_info = EXCLUDED.extra_info,
@@ -666,7 +666,7 @@ async function main() {
                 ${JSON.stringify(r.extra_info || {})}, ${JSON.stringify(r.media_urls || [])},
                 ${r.sentiment}, ${r.sentiment_score}, ${JSON.stringify(r.attributes || [])}, ${JSON.stringify(r.source_highlight || [])}
               )
-              ON CONFLICT (product_id, review_date, COALESCE(reviewer_nickname, ''), LEFT(COALESCE(review_text, ''), 100))
+              ON CONFLICT (product_id, COALESCE(reviewer_nickname, ''), review_date)
               DO UPDATE SET 
                 media_urls = EXCLUDED.media_urls,
                 extra_info = EXCLUDED.extra_info,
@@ -805,7 +805,7 @@ async function main() {
               VALUES (${product.id}, ${r.review_date}, ${r.rating}, ${r.review_text}, ${r.reviewer_nickname},
                 ${JSON.stringify(r.extra_info || {})}, ${JSON.stringify(r.media_urls || [])},
                 ${r.sentiment}, ${r.sentiment_score}, ${JSON.stringify(r.attributes || [])}, ${JSON.stringify(r.source_highlight || [])})
-              ON CONFLICT (product_id, review_date, COALESCE(reviewer_nickname, ''), LEFT(COALESCE(review_text, ''), 100))
+              ON CONFLICT (product_id, COALESCE(reviewer_nickname, ''), review_date)
               DO UPDATE SET
                 media_urls = EXCLUDED.media_urls,
                 extra_info = EXCLUDED.extra_info,
