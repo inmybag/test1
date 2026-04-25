@@ -565,28 +565,16 @@ async function main() {
       const page = await stealthBrowser.newPage();
       await page.setExtraHTTPHeaders({ 'Accept-Language': 'en-US,en;q=0.9' });
 
-      // Amazon 로그인 (환경변수에 계정 정보가 있는 경우)
-      const amazonEmail = process.env.AMAZON_EMAIL;
-      const amazonPassword = process.env.AMAZON_PASSWORD;
-      if (amazonEmail && amazonPassword) {
-        console.log(`  [Amazon] 로그인 시도 중...`);
+      const cookiePath = `${__dirname}/amazon-cookies.json`;
+      if (require('fs').existsSync(cookiePath)) {
         try {
-          await page.goto('https://www.amazon.com/ap/signin?openid.return_to=https%3A%2F%2Fwww.amazon.com&openid.mode=checkid_setup&openid.ns=http%3A%2F%2Fspecs.openid.net%2Fauth%2F2.0', { waitUntil: 'networkidle2', timeout: 30000 });
-          await page.type('#ap_email', amazonEmail, { delay: 50 });
-          await Promise.all([page.click('#continue'), page.waitForNavigation({ waitUntil: 'networkidle2', timeout: 15000 }).catch(() => {})]);
-          await new Promise(r => setTimeout(r, 1000));
-          await page.type('#ap_password', amazonPassword, { delay: 50 });
-          await Promise.all([page.click('#signInSubmit'), page.waitForNavigation({ waitUntil: 'networkidle2', timeout: 15000 }).catch(() => {})]);
-          await new Promise(r => setTimeout(r, 1500));
-          const currentUrl = page.url();
-          if (currentUrl.includes('/ap/signin') || currentUrl.includes('/ap/mfa')) {
-            console.log(`  [Amazon] 로그인 실패 또는 2FA 필요. URL: ${currentUrl}`);
-          } else {
-            console.log(`  [Amazon] 로그인 성공`);
-          }
-        } catch(e) { console.log(`  [Amazon] 로그인 오류: ${e.message}`); }
+          const cookies = JSON.parse(require('fs').readFileSync(cookiePath, 'utf8'));
+          await page.goto('https://www.amazon.com', { waitUntil: 'networkidle2', timeout: 30000 });
+          await page.setCookie(...cookies);
+          console.log(`  [Amazon] 세션 쿠키 로드 완료 (${cookies.length}개)`);
+        } catch(e) { console.log(`  [Amazon] 쿠키 로드 오류: ${e.message}`); }
       } else {
-        console.log(`  [Amazon] AMAZON_EMAIL/AMAZON_PASSWORD 환경변수 없음 — 비로그인으로 시도`);
+        console.log(`  [Amazon] amazon-cookies.json 없음. node scripts/amazon-save-session.js 먼저 실행하세요.`);
       }
 
       // 썸네일 수집
