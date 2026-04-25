@@ -756,15 +756,21 @@ async function main() {
 
           if (!reviews.length) break;
 
+          const SPANISH_MONTHS = { enero:0,febrero:1,marzo:2,abril:3,mayo:4,junio:5,julio:6,agosto:7,septiembre:8,octubre:9,noviembre:10,diciembre:11 };
+          const parseAmazonDate = (dateText) => {
+            const enMatch = dateText.match(/on (\w+ \d+, \d{4})/);
+            if (enMatch) { const d = new Date(enMatch[1]); if (!isNaN(d.getTime())) return d.toISOString().split('T')[0]; }
+            const esMatch = dateText.match(/el (\d+) de (\w+) de (\d{4})/i);
+            if (esMatch) { const m = SPANISH_MONTHS[esMatch[2].toLowerCase()]; if (m !== undefined) { const d = new Date(parseInt(esMatch[3]), m, parseInt(esMatch[1])); if (!isNaN(d.getTime())) return d.toISOString().split('T')[0]; } }
+            const jaMatch = dateText.match(/(\d{4})年(\d{1,2})月(\d{1,2})日/);
+            if (jaMatch) { const d = new Date(parseInt(jaMatch[1]), parseInt(jaMatch[2])-1, parseInt(jaMatch[3])); if (!isNaN(d.getTime())) return d.toISOString().split('T')[0]; }
+            return null;
+          };
           let pageEnd = false;
           for (const raw of reviews) {
-            const dateMatch = raw.dateText.match(/on (\w+ \d+, \d{4})/);
-            let reviewDate = null;
-            if (dateMatch) {
-              const d = new Date(dateMatch[1]);
-              if (!isNaN(d.getTime())) reviewDate = d.toISOString().split('T')[0];
-            }
-            if (!reviewDate || reviewDate < CUTOFF_DATE) { pageEnd = true; continue; }
+            const reviewDate = parseAmazonDate(raw.dateText);
+            if (!reviewDate) { continue; }
+            if (reviewDate < CUTOFF_DATE) { pageEnd = true; continue; }
 
             allReviews.push({
               review_text: [raw.title, raw.body].filter(Boolean).join('. '),
