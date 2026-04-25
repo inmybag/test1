@@ -8,7 +8,7 @@ function detectPlatform(url) {
   if (url.includes('oliveyoung.co.kr')) return 'oliveyoung';
   if (url.includes('smartstore.naver.com') || url.includes('brand.naver.com') || url.includes('shopping.naver.com')) return 'naver';
   if (url.includes('musinsa.com')) return 'musinsa';
-  // 카페24는 다양한 도메인 가능
+  if (url.includes('amazon.com') || url.includes('amazon.co.jp') || url.includes('amazon.co.uk')) return 'amazon';
   return 'cafe24';
 }
 

@@ -543,6 +543,95 @@ async function main() {
         await new Promise(r => setTimeout(r, 800));
       }
       await page.close();
+    } else if (product.platform === 'amazon') {
+      const asinMatch = product.page_url.match(/\/dp\/([A-Z0-9]{10})/) ||
+                        product.page_url.match(/\/gp\/product\/([A-Z0-9]{10})/) ||
+                        product.page_url.match(/\/product-reviews\/([A-Z0-9]{10})/);
+      if (!asinMatch) { console.log(`[백필] Amazon ASIN 추출 실패: ${product.page_url}`); continue; }
+      const asin = asinMatch[1];
+
+      console.log(`\n========================================`);
+      console.log(`[백필] (Amazon) ${product.brand_name} ${product.product_name} (${asin})`);
+      console.log(`========================================`);
+
+      const page = await browser.newPage();
+      await page.setUserAgent('Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36');
+      await page.setExtraHTTPHeaders({ 'Accept-Language': 'en-US,en;q=0.9' });
+
+      // 썸네일 수집
+      if (!product.thumbnail_url) {
+        try {
+          await page.goto(`https://www.amazon.com/dp/${asin}`, { waitUntil: 'networkidle2', timeout: 60000 });
+          const thumb = await page.evaluate(() =>
+            document.querySelector('#landingImage')?.src ||
+            document.querySelector('meta[property="og:image"]')?.content
+          );
+          if (thumb) {
+            const dc = await pool.connect();
+            try { await dc.sql`UPDATE review_products SET thumbnail_url = ${thumb} WHERE id = ${product.id}`; } finally { dc.release(); }
+            product.thumbnail_url = thumb;
+            console.log(`  [Amazon] 썸네일 저장 완료`);
+          }
+        } catch(e) { console.log(`  [Amazon] 썸네일 로드 실패: ${e.message}`); }
+      }
+
+      let pageNum = 1;
+      while (pageNum <= 20) {
+        console.log(`  [Amazon] 리뷰 페이지 ${pageNum} 호출 중...`);
+        try {
+          await page.goto(
+            `https://www.amazon.com/product-reviews/${asin}/?sortBy=recent&pageNumber=${pageNum}`,
+            { waitUntil: 'networkidle2', timeout: 60000 }
+          );
+          await new Promise(r => setTimeout(r, 1000));
+
+          const reviews = await page.evaluate(() => {
+            const items = [...document.querySelectorAll('[data-hook="review"]')];
+            return items.map(el => {
+              const ratingEl = el.querySelector('[data-hook="review-star-rating"] .a-icon-alt') ||
+                               el.querySelector('i[data-hook*="star"] .a-icon-alt');
+              const rating = ratingEl ? parseFloat(ratingEl.textContent) : 5;
+              const dateText = el.querySelector('[data-hook="review-date"]')?.textContent?.trim() || '';
+              const body = el.querySelector('[data-hook="review-body"] span')?.textContent?.trim() || '';
+              const titleEls = [...el.querySelectorAll('[data-hook="review-title"] span')];
+              const title = titleEls.map(s => s.textContent.trim()).filter(t => !t.match(/^\d+(\.\d+)? out of/)).join(' ').trim();
+              const author = el.querySelector('.a-profile-name')?.textContent?.trim() || '익명';
+              const images = [...el.querySelectorAll('[data-hook="review-image-tile"] img')].map(img => img.src).filter(Boolean);
+              const verified = !!el.querySelector('[data-hook="avp-badge"]');
+              return { rating, dateText, body, title, author, images, verified };
+            });
+          });
+
+          if (!reviews.length) break;
+
+          let pageEnd = false;
+          for (const raw of reviews) {
+            const dateMatch = raw.dateText.match(/on (\w+ \d+, \d{4})/);
+            let reviewDate = null;
+            if (dateMatch) {
+              const d = new Date(dateMatch[1]);
+              if (!isNaN(d.getTime())) reviewDate = d.toISOString().split('T')[0];
+            }
+            if (!reviewDate || reviewDate < CUTOFF_DATE) { pageEnd = true; continue; }
+
+            allCollectedReviews.push({
+              review_text: [raw.title, raw.body].filter(Boolean).join('. '),
+              rating: Math.round(raw.rating),
+              reviewer_nickname: raw.author,
+              review_date: reviewDate,
+              extra_info: { verified: raw.verified },
+              media_urls: raw.images
+            });
+          }
+          if (pageEnd) break;
+        } catch(e) {
+          console.log(`  [Amazon] 페이지 ${pageNum} 오류: ${e.message}`);
+          break;
+        }
+        pageNum++;
+        await new Promise(r => setTimeout(r, 1500));
+      }
+      await page.close();
     } else {
       console.log(`[백필] 미지원 플랫폼: ${product.platform}`);
       continue;
