@@ -661,11 +661,10 @@ async function main() {
               const titleEls = [...el.querySelectorAll('[data-hook="review-title"] span')];
               const title = titleEls.map(s => s.textContent.trim()).filter(t => !t.match(/^\d+(\.\d+)? out of/)).join(' ').trim();
               const author = el.querySelector('.a-profile-name')?.textContent?.trim() || '익명';
-              const images = [...el.querySelectorAll('[data-hook="review-image-tile"] img')].map(img => {
+              const images = [...el.querySelectorAll('img.review-image-tile')].map(img => {
                 const url = img.src || img.getAttribute('data-src') || img.getAttribute('data-a-img-url') || '';
-                // 썸네일 suffix 제거하여 원본 이미지 URL로 변환 (._SY88. → .)
-                return url.replace(/\._[A-Z]{2}\d+(_[A-Z]{2}\d+)*\./g, '.').replace(/\._[^.]+\./g, '.');
-              }).filter(Boolean);
+                return url.replace(/\._[A-Z]{2}\d+(\.[A-Z]{2}\d+)*(?=\.)/g, '');
+              }).filter(url => url && url.startsWith('http'));
               const verified = !!el.querySelector('[data-hook="avp-badge"]');
               return { rating, dateText, body, title, author, images, verified };
             });
