@@ -3,6 +3,9 @@
  * 사용법: node scripts/crawl-reviews-backfill.js
  */
 const puppeteer = require('puppeteer');
+const puppeteerExtra = require('puppeteer-extra');
+const StealthPlugin = require('puppeteer-extra-plugin-stealth');
+puppeteerExtra.use(StealthPlugin());
 const axios = require('axios');
 require('dotenv').config({ path: '.env.local' });
 require('dotenv').config();
@@ -554,8 +557,12 @@ async function main() {
       console.log(`[백필] (Amazon) ${product.brand_name} ${product.product_name} (${asin})`);
       console.log(`========================================`);
 
-      const page = await browser.newPage();
-      await page.setUserAgent('Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36');
+      // Amazon은 봇 감지 우회를 위해 stealth 브라우저 별도 사용
+      const stealthBrowser = await puppeteerExtra.launch({
+        headless: 'new',
+        args: ['--no-sandbox', '--disable-setuid-sandbox', '--lang=en-US']
+      });
+      const page = await stealthBrowser.newPage();
       await page.setExtraHTTPHeaders({ 'Accept-Language': 'en-US,en;q=0.9' });
 
       // 썸네일 수집
@@ -631,7 +638,7 @@ async function main() {
         pageNum++;
         await new Promise(r => setTimeout(r, 1500));
       }
-      await page.close();
+      await stealthBrowser.close();
     } else {
       console.log(`[백필] 미지원 플랫폼: ${product.platform}`);
       continue;

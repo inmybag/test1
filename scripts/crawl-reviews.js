@@ -3,6 +3,9 @@
  * 사용법: node scripts/crawl-reviews-backfill.js
  */
 const puppeteer = require('puppeteer');
+const puppeteerExtra = require('puppeteer-extra');
+const StealthPlugin = require('puppeteer-extra-plugin-stealth');
+puppeteerExtra.use(StealthPlugin());
 const axios = require('axios');
 require('dotenv').config({ path: '.env.local' });
 require('dotenv').config();
@@ -648,8 +651,11 @@ async function main() {
       console.log(`[일일크롤러] (Amazon) ${product.brand_name} ${product.product_name} (${asin})`);
       console.log(`========================================`);
 
-      const page = await browser.newPage();
-      await page.setUserAgent('Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36');
+      const stealthBrowser = await puppeteerExtra.launch({
+        headless: 'new',
+        args: ['--no-sandbox', '--disable-setuid-sandbox', '--lang=en-US']
+      });
+      const page = await stealthBrowser.newPage();
       await page.setExtraHTTPHeaders({ 'Accept-Language': 'en-US,en;q=0.9' });
 
       if (!product.thumbnail_url) {
@@ -724,7 +730,7 @@ async function main() {
         pageNum++;
         await new Promise(r => setTimeout(r, 1500));
       }
-      await page.close();
+      await stealthBrowser.close();
 
       console.log(`\n[일일크롤러] 총 ${allReviews.length}건 수집`);
       if (!allReviews.length) { console.log('[일일크롤러] 수집 리뷰 없음.'); continue; }
