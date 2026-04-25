@@ -513,9 +513,10 @@ export default function ReviewAnalysisPage() {
           )}
           {r.platform && (
             <span className="ra-review-platform">
-              {r.platform === 'oliveyoung' ? '올리브영' : 
-               r.platform === 'naver' ? '네이버' : 
-               r.platform === 'musinsa' ? '무신사' : '자사몰'}
+              {r.platform === 'oliveyoung' ? '올리브영' :
+               r.platform === 'naver' ? '네이버' :
+               r.platform === 'musinsa' ? '무신사' :
+               r.platform === 'amazon' ? '아마존' : '자사몰'}
             </span>
           )}
           {r.brandName && <span className="ra-review-brand-tag">{r.brandName}</span>}
@@ -528,6 +529,12 @@ export default function ReviewAnalysisPage() {
           <div className="ra-review-option">option: {optionText}</div>
         )}
         <p className="ra-review-text">{renderHighlightedText(r.reviewText, r.sourceHighlight)}</p>
+        {r.extraInfo?.originalText && (
+          <details style={{ marginTop: '0.4rem' }}>
+            <summary style={{ fontSize: '0.75rem', color: '#888', cursor: 'pointer', userSelect: 'none' }}>원문보기</summary>
+            <p style={{ marginTop: '0.3rem', fontSize: '0.82rem', color: '#aaa', lineHeight: 1.5 }}>{r.extraInfo.originalText}</p>
+          </details>
+        )}
         {mediaUrls.length > 0 && (
           <div className="ra-review-media">
             {mediaUrls.slice(0, 4).map((url, mi) => (
@@ -1398,7 +1405,9 @@ export default function ReviewAnalysisPage() {
                     ? { label: '네이버', color: '#03c75a' }
                     : p.platform === 'musinsa'
                     ? { label: '무신사', color: '#000000' }
-                    : { label: '카페24', color: '#2c6ecb' };
+                    : p.platform === 'amazon'
+                    ? { label: '아마존', color: '#FF9900' }
+                    : { label: '자사몰', color: '#2c6ecb' };
                   return (
                     <label key={p.id} style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', padding: '0.6rem 0.75rem', borderRadius: '10px', cursor: 'pointer', background: isChecked ? 'rgba(157,206,99,0.08)' : 'transparent', transition: 'background 0.15s' }}>
                       <input

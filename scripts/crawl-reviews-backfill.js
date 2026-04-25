@@ -158,9 +158,51 @@ async function fetchNativeCafe24Reviews(baseUrl, productNo, cutoffDate) {
 /**
  * 리뷰 배치를 분석하고 DB에 즉시 저장
  */
+function isKorean(text) {
+  if (!text) return true;
+  const koreanChars = (text.match(/[가-힣ᄀ-ᇿ㄰-㆏]/g) || []).length;
+  const totalChars = text.replace(/\s/g, '').length;
+  return totalChars === 0 || koreanChars / totalChars > 0.15;
+}
+
+async function translateToKorean(reviews) {
+  const toTranslate = reviews.map((r, i) => ({ r, i })).filter(({ r }) => !isKorean(r.review_text));
+  if (!toTranslate.length) return reviews;
+
+  console.log(`  [번역] 외국어 리뷰 ${toTranslate.length}건 한국어 번역 중...`);
+  const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash-lite' });
+  const texts = toTranslate.map(({ r, i }) => `[${i}] ${sanitizeString(r.review_text)}`).join('\n');
+  const prompt = `다음 뷰티/화장품 리뷰를 자연스러운 한국어로 번역하세요.\n\n${texts}\n\n[숫자] 번역문 형식으로만 응답하세요. 설명 없이.`;
+
+  try {
+    const res = await model.generateContent(prompt);
+    const text = res.response.text().trim();
+    const result = [...reviews];
+    const matches = [...text.matchAll(/\[(\d+)\]\s*([\s\S]*?)(?=\n\[\d+\]|$)/g)];
+    for (const m of matches) {
+      const origIdx = parseInt(m[1]);
+      const translation = m[2].trim();
+      if (translation && result[origIdx]) {
+        result[origIdx] = {
+          ...result[origIdx],
+          review_text: sanitizeString(translation),
+          extra_info: { ...(result[origIdx].extra_info || {}), originalText: result[origIdx].review_text }
+        };
+      }
+    }
+    return result;
+  } catch(e) {
+    console.log(`  [번역] 오류: ${e.message}`);
+    return reviews;
+  }
+}
+
 async function analyzeAndSaveBatch(productId, reviews, platformLabel) {
   if (!reviews.length) return 0;
-  
+
+  // 외국어 리뷰 한국어 번역 (분석 전)
+  reviews = await translateToKorean(reviews);
+
   const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash-lite' });
   const texts = reviews.map((r, idx) => `[${idx}] ${sanitizeString(r.review_text)}`).join('\n');
 
