@@ -644,7 +644,11 @@ async function main() {
             `https://www.amazon.com/product-reviews/${asin}/?sortBy=recent&pageNumber=${pageNum}`,
             { waitUntil: 'networkidle2', timeout: 60000 }
           );
-          await new Promise(r => setTimeout(r, 1000));
+          // 스크롤하여 lazy load 이미지 트리거
+          await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
+          await new Promise(r => setTimeout(r, 1500));
+          await page.evaluate(() => window.scrollTo(0, 0));
+          await new Promise(r => setTimeout(r, 500));
 
           const reviews = await page.evaluate(() => {
             const items = [...document.querySelectorAll('[data-hook="review"]')];
@@ -657,7 +661,11 @@ async function main() {
               const titleEls = [...el.querySelectorAll('[data-hook="review-title"] span')];
               const title = titleEls.map(s => s.textContent.trim()).filter(t => !t.match(/^\d+(\.\d+)? out of/)).join(' ').trim();
               const author = el.querySelector('.a-profile-name')?.textContent?.trim() || '익명';
-              const images = [...el.querySelectorAll('[data-hook="review-image-tile"] img')].map(img => img.src).filter(Boolean);
+              const images = [...el.querySelectorAll('[data-hook="review-image-tile"] img')].map(img => {
+                const url = img.src || img.getAttribute('data-src') || img.getAttribute('data-a-img-url') || '';
+                // 썸네일 suffix 제거하여 원본 이미지 URL로 변환 (._SY88. → .)
+                return url.replace(/\._[A-Z]{2}\d+(_[A-Z]{2}\d+)*\./g, '.').replace(/\._[^.]+\./g, '.');
+              }).filter(Boolean);
               const verified = !!el.querySelector('[data-hook="avp-badge"]');
               return { rating, dateText, body, title, author, images, verified };
             });
