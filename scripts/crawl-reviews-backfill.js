@@ -631,7 +631,9 @@ async function main() {
               const d = new Date(dateMatch[1]);
               if (!isNaN(d.getTime())) reviewDate = d.toISOString().split('T')[0];
             }
-            if (!reviewDate || reviewDate < CUTOFF_DATE) { pageEnd = true; continue; }
+            // Amazon 백필은 1년치 수집 (일반 30일 컷오프 대신)
+            const amazonCutoff = getDateDaysAgo(365);
+            if (!reviewDate || reviewDate < amazonCutoff) { pageEnd = true; continue; }
 
             allCollectedReviews.push({
               review_text: [raw.title, raw.body].filter(Boolean).join('. '),
