@@ -78,6 +78,11 @@ export default function NaverTrendPage() {
   };
 
   const processChartData = (apiData) => {
+    if (!apiData || !apiData.results || apiData.results.length === 0) {
+      setError('네이버 데이터랩 API에서 데이터를 반환하지 않았습니다. 검색량이 부족하거나 일시적인 오류일 수 있습니다.');
+      return;
+    }
+    
     const labels = apiData.results[0].data.map(item => item.period);
     
     const datasets = apiData.results.map((result, index) => {
@@ -223,13 +228,11 @@ export default function NaverTrendPage() {
 
       <style jsx>{`
         .trend-page {
-          min-height: 100vh;
           padding-top: 10rem;
-          padding-bottom: 0;
+          padding-bottom: 2rem;
           background-color: #050507;
           color: #fff;
           position: relative;
-          overflow-x: hidden;
         }
 
         .hero-blob {
@@ -246,7 +249,7 @@ export default function NaverTrendPage() {
 
         .hero-blob-2 {
           position: absolute;
-          bottom: -10%;
+          bottom: 0;
           left: -10%;
           width: 50%;
           height: 50%;
@@ -409,8 +412,8 @@ export default function NaverTrendPage() {
           grid-template-columns: repeat(1, 1fr);
           gap: 2rem;
         }
-        @media (min-width: 768px) { grid-template-columns: repeat(2, 1fr); }
-        @media (min-width: 1200px) { grid-template-columns: repeat(4, 1fr); }
+        @media (min-width: 768px) { .category-grid { grid-template-columns: repeat(2, 1fr); } }
+        @media (min-width: 1200px) { .category-grid { grid-template-columns: repeat(4, 1fr); } }
 
         .category-card {
           padding: 2rem;

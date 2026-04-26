@@ -21,12 +21,36 @@ const CHART_COLORS = ['#9dce63', '#639dce', '#50C878', '#9B59B6', '#F39C12', '#1
 
 const DARK_CHART_DEFAULTS = {
   responsive: true, maintainAspectRatio: false,
-  plugins: { legend: { labels: { color: '#e2e8f0', font: { size: 10 } } } },
+  plugins: { 
+    legend: { 
+      position: 'top',
+      labels: { color: '#e2e8f0', font: { size: 11, weight: '600' }, usePointStyle: true, padding: 15 } 
+    },
+    tooltip: {
+      backgroundColor: 'rgba(15, 23, 42, 0.9)',
+      titleColor: '#fff',
+      bodyColor: '#cbd5e1',
+      padding: 12,
+      borderColor: 'rgba(255, 255, 255, 0.1)',
+      borderWidth: 1,
+    }
+  },
   scales: {
-    x: { ticks: { color: '#94a3b8', font: { size: 9 } }, grid: { color: 'rgba(255,255,255,0.04)' } },
-    y: { ticks: { color: '#94a3b8', precision: 0, stepSize: 1 }, grid: { color: 'rgba(255,255,255,0.04)' }, beginAtZero: true },
+    x: { ticks: { color: '#94a3b8', font: { size: 10 } }, grid: { color: 'rgba(255,255,255,0.03)', drawBorder: false } },
+    y: { ticks: { color: '#94a3b8', font: { size: 10 }, precision: 0, stepSize: 1 }, grid: { color: 'rgba(255,255,255,0.03)', drawBorder: false }, beginAtZero: true },
   },
 };
+
+const PLATFORM_META = {
+  oliveyoung: { label: '올리브영', color: '#9dce63', bg: 'rgba(157, 206, 99, 0.1)' },
+  naver: { label: '네이버', color: '#03c75a', bg: 'rgba(3, 199, 90, 0.1)' },
+  musinsa: { label: '무신사', color: '#000000', bg: 'rgba(255, 255, 255, 0.05)' },
+  amazon: { label: '아마존', color: '#FF9900', bg: 'rgba(255, 153, 0, 0.1)' },
+  tiktok: { label: '틱톡', color: '#000000', bg: 'rgba(255, 255, 255, 0.1)' },
+  default: { label: '자사몰', color: '#2c6ecb', bg: 'rgba(44, 110, 203, 0.1)' }
+};
+
+
 
 export default function ReviewAnalysisPage() {
   const [activeTab, setActiveTab] = useState('dashboard');
@@ -516,7 +540,9 @@ export default function ReviewAnalysisPage() {
               {r.platform === 'oliveyoung' ? '올리브영' :
                r.platform === 'naver' ? '네이버' :
                r.platform === 'musinsa' ? '무신사' :
-               r.platform === 'amazon' ? '아마존' : '자사몰'}
+               r.platform === 'amazon' ? '아마존' :
+               r.platform === 'tiktok' ? '틱톡' : '자사몰'}
+
             </span>
           )}
           {r.brandName && <span className="ra-review-brand-tag">{r.brandName}</span>}
@@ -548,8 +574,14 @@ export default function ReviewAnalysisPage() {
 
   // ── 대시보드 ──────────────────────────────────────
   const renderDashboard = () => {
-    if (!dashboardData.length) return <div className="ra-empty-state">제품을 선택하면 데이터가 표시됩니다.</div>;
+    if (!dashboardData.length) return (
+      <div className="ra-empty-state glass-panel" style={{ padding: '5rem' }}>
+        <BarChart3 size={48} style={{ opacity: 0.1, marginBottom: '1.5rem' }} />
+        <p style={{ fontSize: '1.1rem' }}>데이터를 분석할 제품을 먼저 선택해주세요.</p>
+      </div>
+    );
     return (
+
       <div className="ra-dashboard-grid">
         {dashboardData.map(item => {
           const total = parseInt(item.totalReviews) || 0;
@@ -558,20 +590,20 @@ export default function ReviewAnalysisPage() {
           const neu = parseInt(item.neutralCount) || 0;
           const posRate = total > 0 ? Math.round(pos / total * 100) : 0;
           const negRate = total > 0 ? Math.round(neg / total * 100) : 0;
-          const neuRate = total > 0 ? Math.round(neu / total * 100) : 0;
+          const neuRate = total > 0 ? Math.max(0, 100 - posRate - negRate) : 0;
           const todayCount = parseInt(item.todayCount) || 0;
           const allTimeCount = parseInt(item.allTimeCount) || 0;
           const topPos = item.topAttributes?.positive || [];
           const topNeg = item.topAttributes?.negative || [];
           const p = products.find(prod => String(prod.id) === String(item.productId));
           return (
-            <div key={item.productId} className="ra-dashboard-row">
+            <div key={item.productId} className="ra-dashboard-row" style={{ marginBottom: '1.5rem' }}>
               <div className="ra-dash-card glass-panel">
                 <div className="ra-dash-card-header">
                   {item.thumbnailUrl && <img src={item.thumbnailUrl} alt="" className="ra-dash-thumb" />}
-                  <div>
+                  <div style={{ minWidth: 0 }}>
                     <span className="ra-dash-brand">{item.brandName}</span>
-                    <h4>{item.productName}</h4>
+                    <h4 className="ra-product-title-dash">{item.productName}</h4>
                     {p?.pageUrl && <a href={p.pageUrl} target="_blank" rel="noreferrer" className="ra-external-link">상품 상세 보기 ↗</a>}
                   </div>
                 </div>
@@ -579,13 +611,14 @@ export default function ReviewAnalysisPage() {
                   <span className="ra-dash-number">{total.toLocaleString()}</span>
                   <span className="ra-dash-label">신규 리뷰수</span>
                 </div>
-                <div style={{ display: 'flex', gap: '1rem', marginTop: '0.75rem', fontSize: '0.82rem' }}>
-                  <span style={{ color: '#9dce63' }}>금일 <strong>{todayCount}</strong>건</span>
-                  <span style={{ color: '#94a3b8' }}>누적 <strong>{allTimeCount.toLocaleString()}</strong>건</span>
+                <div className="ra-dash-mini-stats">
+                  <span className="today">오늘 <strong>{todayCount}</strong></span>
+                  <span className="divider"></span>
+                  <span className="all">누적 <strong>{allTimeCount.toLocaleString()}</strong></span>
                 </div>
               </div>
               <div className="ra-dash-card glass-panel">
-                <h4>{item.brandName} {item.productName}</h4>
+                <h4 className="ra-dash-card-title">긍/부정 비중 (N={total.toLocaleString()})</h4>
                 <div className="ra-sentiment-bars">
                   <div className="ra-sentiment-bar">
                     <span className="ra-sentiment-label positive">긍정</span>
@@ -603,18 +636,18 @@ export default function ReviewAnalysisPage() {
                     <span className="ra-sentiment-pct negative">{negRate}%</span>
                   </div>
                 </div>
-                {item.avgRating && <div className="ra-avg-rating">평균 ★ {item.avgRating}</div>}
+                {item.avgRating && <div className="ra-avg-rating">평균 별점 ★ {item.avgRating}</div>}
               </div>
               <div className="ra-dash-card glass-panel">
-                <h4>{item.brandName} {item.productName}</h4>
+                <h4 className="ra-dash-card-title">핵심 속성 TOP3</h4>
                 <div className="ra-top-attrs">
                   <div className="ra-attr-section">
-                    <span className="ra-attr-title positive">TOP3 긍정 속성</span>
-                    <span className="ra-attr-values positive">{topPos.length ? topPos.slice(0, 3).map(a => a.name).join(', ') : '-'}</span>
+                    <span className="ra-attr-title positive">긍정 키워드</span>
+                    <span className="ra-attr-values positive">{topPos.length ? topPos.slice(0, 3).map(a => a.name).join(', ') : '정보 없음'}</span>
                   </div>
                   <div className="ra-attr-section">
-                    <span className="ra-attr-title negative">TOP3 부정 속성</span>
-                    <span className="ra-attr-values negative">{topNeg.length ? topNeg.slice(0, 3).map(a => a.name).join(', ') : '-'}</span>
+                    <span className="ra-attr-title negative">부정 키워드</span>
+                    <span className="ra-attr-values negative">{topNeg.length ? topNeg.slice(0, 3).map(a => a.name).join(', ') : '정보 없음'}</span>
                   </div>
                 </div>
               </div>
@@ -623,6 +656,7 @@ export default function ReviewAnalysisPage() {
         })}
       </div>
     );
+
   };
 
   // ── 기간별 분석 ───────────────────────────────────
@@ -687,15 +721,20 @@ export default function ReviewAnalysisPage() {
     const clearChartFilter = () => { setChartFilterDate(null); setChartFilterPid(null); };
 
     return (
-      <div className="ra-period-container">
-        <div className="ra-period-left" style={{ display: 'flex', flexDirection: 'column', height: 'calc(100vh - 260px)' }}>
+      <div className="ra-period-container" style={{ height: 'calc(100vh - 280px)', minHeight: '600px' }}>
+        <div className="ra-period-left" style={{ display: 'flex', flexDirection: 'column' }}>
+
           <div className="ra-chart-panel glass-panel" style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-            <div style={{ height: 320, flexShrink: 0 }}>
+            <div style={{ height: 350, flexShrink: 0, marginBottom: '1.5rem' }}>
               {dates.length > 0
                 ? <Line data={lineChartData} options={lineOpts} />
-                : <div className="ra-empty-state">차트 데이터가 없습니다.</div>
+                : <div className="ra-empty-state glass-panel">
+                    <BarChart3 size={32} style={{ opacity: 0.2, marginBottom: '1rem' }} />
+                    <p>데이터가 충분하지 않습니다.</p>
+                  </div>
               }
             </div>
+
             {attrChips.length > 0 && (
               <div className="ra-attr-chips" style={{ overflowY: 'auto', alignContent: 'flex-start' }}>
                 {attrChips.map(({ name, count }) => (
@@ -714,7 +753,8 @@ export default function ReviewAnalysisPage() {
             )}
           </div>
         </div>
-        <div ref={periodScrollRef} className="ra-period-right" style={{ display: 'flex', flexDirection: 'column', height: 'calc(100vh - 260px)' }}>
+        <div ref={periodScrollRef} className="ra-period-right" style={{ display: 'flex', flexDirection: 'column' }}>
+
           <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flexWrap: 'wrap', flexShrink: 0 }}>
             <div className="ra-filter-bar">
               {['전체', '긍정', '중립', '부정'].map(label => {
@@ -832,7 +872,8 @@ export default function ReviewAnalysisPage() {
     if (!productIds.length) return <div className="ra-empty-state">제품을 선택하면 데이터가 표시됩니다.</div>;
 
     return (
-      <div className="ra-sentiment-container">
+      <div className="ra-sentiment-container" style={{ display: 'flex', flexDirection: 'column', gap: '3rem' }}>
+
         {productIds.map(pid => {
           const info = productAttrMap[pid] || { productName: productNames[pid] || '', brandName: '', attrs: [] };
           const top = info.attrs.slice(0, 10);
@@ -1100,60 +1141,61 @@ export default function ReviewAnalysisPage() {
               {/* 대시보드 기본 정보 (레이아웃 차용) */}
               {dash && (
                 <div className="ra-dashboard-row" style={{ marginTop: '1.5rem', marginBottom: '2rem' }}>
-                   <div className="ra-dash-card glass-panel" style={{ flex: '1 1 30%', padding: '1.5rem' }}>
+                   <div className="ra-dash-card glass-panel">
                      <div className="ra-dash-card-header">
-                       {dash.thumbnailUrl && <img src={dash.thumbnailUrl} alt="" className="ra-dash-thumb" style={{ width: '60px', height: '60px', borderRadius: '8px' }} />}
-                       <div style={{ wordBreak: 'keep-all' }}>
-                         <span className="ra-dash-brand" style={{ fontSize: '0.8rem', color: '#94a3b8' }}>{dash.brandName}</span>
-                         <h4 style={{ margin: '0.2rem 0 0 0', fontSize: '1rem', lineHeight: '1.4' }}>{dash.productName}</h4>
+                       {dash.thumbnailUrl && <img src={dash.thumbnailUrl} alt="" className="ra-dash-thumb" style={{ width: '60px', height: '60px' }} />}
+                       <div>
+                         <span className="ra-dash-brand" style={{ fontSize: '0.75rem' }}>{dash.brandName}</span>
+                         <h4 style={{ margin: '0', fontSize: '0.95rem' }}>{dash.productName}</h4>
                           {(() => {
                             const prod = products.find(pr => String(pr.id) === String(pid));
                             const url = prod?.pageUrl;
-                            return url ? <a href={url} target="_blank" rel="noreferrer" className="ra-external-link" style={{ fontSize: '0.75rem', marginTop: '0.5rem', display: 'inline-block' }}>상품 상세 보기 ↗</a> : null;
+                            return url ? <a href={url} target="_blank" rel="noreferrer" className="ra-external-link" style={{ marginTop: '0.4rem', display: 'inline-block' }}>상품 상세 보기 ↗</a> : null;
                           })()}
                        </div>
                      </div>
-                     <div className="ra-dash-stat" style={{ marginTop: '1.5rem', display: 'flex', alignItems: 'flex-end', gap: '0.5rem' }}>
-                       <span className="ra-dash-number" style={{ fontSize: '2rem', fontWeight: 'bold' }}>{total.toLocaleString()}</span>
-                       <span className="ra-dash-label" style={{ fontSize: '0.8rem', color: '#94a3b8', marginBottom: '0.4rem' }}>기간 내 리뷰수</span>
-                       <span className={`ra-dash-growth ${dash.growthRate >= 0 ? 'positive' : 'negative'}`} style={{ marginLeft: 'auto', marginBottom: '0.4rem', fontSize: '0.8rem' }}>{dash.growthRate >= 0 ? '↑' : '↓'} {Math.abs(dash.growthRate)}%</span>
+                     <div className="ra-dash-stat" style={{ marginTop: '1rem' }}>
+                       <span className="ra-dash-number" style={{ fontSize: '1.8rem' }}>{total.toLocaleString()}</span>
+                       <span className="ra-dash-label">신규 리뷰수</span>
+                       <span className={`ra-dash-growth ${dash.growthRate >= 0 ? 'positive' : 'negative'}`} style={{ marginLeft: 'auto' }}>{dash.growthRate >= 0 ? '↑' : '↓'} {Math.abs(dash.growthRate)}%</span>
                      </div>
                    </div>
-                   <div className="ra-dash-card glass-panel" style={{ flex: '1 1 30%', padding: '1.5rem' }}>
-                     <h4 style={{ fontSize: '1rem', marginBottom: '1.5rem' }}>{dash.brandName} {dash.productName}</h4>
+                   <div className="ra-dash-card glass-panel">
+                     <h4 style={{ marginBottom: '1rem' }}>긍/부정 비중</h4>
                      <div className="ra-sentiment-bars">
-                       <div className="ra-sentiment-bar" style={{ marginBottom: '1rem' }}>
-                         <span className="ra-sentiment-label positive" style={{ width: '60px', fontSize: '0.8rem' }}>긍정비중</span>
-                         <div className="ra-bar-track" style={{ flex: 1, height: '8px', background: 'rgba(255,255,255,0.1)', borderRadius: '4px', overflow: 'hidden' }}><div className="ra-bar-fill positive" style={{ width: `${posRate}%`, background: '#60a5fa', height: '100%' }} /></div>
-                         <span className="ra-sentiment-pct positive" style={{ width: '40px', textAlign: 'right', fontSize: '0.85rem', color: '#60a5fa', fontWeight: 'bold' }}>{posRate}%</span>
-                       </div>
-                       <div className="ra-sentiment-bar" style={{ marginBottom: '1rem' }}>
-                         <span className="ra-sentiment-label neutral" style={{ width: '60px', fontSize: '0.8rem' }}>중립비중</span>
-                         <div className="ra-bar-track" style={{ flex: 1, height: '8px', background: 'rgba(255,255,255,0.1)', borderRadius: '4px', overflow: 'hidden' }}><div className="ra-bar-fill neutral" style={{ width: `${neuRate}%`, height: '100%' }} /></div>
-                         <span className="ra-sentiment-pct neutral" style={{ width: '40px', textAlign: 'right', fontSize: '0.85rem', fontWeight: 'bold' }}>{neuRate}%</span>
+                       <div className="ra-sentiment-bar">
+                         <span className="ra-sentiment-label positive">긍정</span>
+                         <div className="ra-bar-track"><div className="ra-bar-fill positive" style={{ width: `${posRate}%` }} /></div>
+                         <span className="ra-sentiment-pct positive">{posRate}%</span>
                        </div>
                        <div className="ra-sentiment-bar">
-                         <span className="ra-sentiment-label negative" style={{ width: '60px', fontSize: '0.8rem' }}>부정비중</span>
-                         <div className="ra-bar-track" style={{ flex: 1, height: '8px', background: 'rgba(255,255,255,0.1)', borderRadius: '4px', overflow: 'hidden' }}><div className="ra-bar-fill negative" style={{ width: `${negRate}%`, background: '#f87171', height: '100%' }} /></div>
-                         <span className="ra-sentiment-pct negative" style={{ width: '40px', textAlign: 'right', fontSize: '0.85rem', color: '#f87171', fontWeight: 'bold' }}>{negRate}%</span>
+                         <span className="ra-sentiment-label neutral">중립</span>
+                         <div className="ra-bar-track"><div className="ra-bar-fill neutral" style={{ width: `${neuRate}%` }} /></div>
+                         <span className="ra-sentiment-pct neutral">{neuRate}%</span>
+                       </div>
+                       <div className="ra-sentiment-bar">
+                         <span className="ra-sentiment-label negative">부정</span>
+                         <div className="ra-bar-track"><div className="ra-bar-fill negative" style={{ width: `${negRate}%` }} /></div>
+                         <span className="ra-sentiment-pct negative">{negRate}%</span>
                        </div>
                      </div>
-                     {avgRating && <div className="ra-avg-rating" style={{ marginTop: '1.5rem', color: '#fbbf24', fontSize: '0.9rem', fontWeight: 'bold' }}>평균 ★ {avgRating}</div>}
+                     {avgRating && <div className="ra-avg-rating">평균 ★ {avgRating}</div>}
                    </div>
-                   <div className="ra-dash-card glass-panel" style={{ flex: '1 1 30%', padding: '1.5rem' }}>
-                     <h4 style={{ fontSize: '1rem', marginBottom: '1.5rem' }}>{dash.brandName} {dash.productName}</h4>
-                     <div className="ra-top-attrs" style={{ display: 'flex', flexDirection: 'column', gap: '1.2rem' }}>
+                   <div className="ra-dash-card glass-panel">
+                     <h4 style={{ marginBottom: '1rem' }}>핵심 속성 TOP3</h4>
+                     <div className="ra-top-attrs">
                        <div className="ra-attr-section">
-                         <span className="ra-attr-title" style={{ color: '#60a5fa', fontSize: '0.8rem', fontWeight: 'bold', display: 'block', marginBottom: '0.4rem' }}>TOP3 긍정 속성</span>
-                         <span className="ra-attr-values" style={{ color: '#fff', fontSize: '0.9rem' }}>{dash.topAttributes?.positive?.length ? dash.topAttributes.positive.slice(0, 3).map(a => a.name).join(', ') : '-'}</span>
+                         <span className="ra-attr-title positive">긍정</span>
+                         <span className="ra-attr-values positive">{dash.topAttributes?.positive?.length ? dash.topAttributes.positive.slice(0, 3).map(a => a.name).join(', ') : '-'}</span>
                        </div>
                        <div className="ra-attr-section">
-                         <span className="ra-attr-title" style={{ color: '#f87171', fontSize: '0.8rem', fontWeight: 'bold', display: 'block', marginBottom: '0.4rem' }}>TOP3 부정 속성</span>
-                         <span className="ra-attr-values" style={{ color: '#fff', fontSize: '0.9rem' }}>{dash.topAttributes?.negative?.length ? dash.topAttributes.negative.slice(0, 3).map(a => a.name).join(', ') : '-'}</span>
+                         <span className="ra-attr-title negative">부정</span>
+                         <span className="ra-attr-values negative">{dash.topAttributes?.negative?.length ? dash.topAttributes.negative.slice(0, 3).map(a => a.name).join(', ') : '-'}</span>
                        </div>
                      </div>
                    </div>
                 </div>
+
               )}
 
               {isInsufficient ? (
@@ -1399,17 +1441,9 @@ export default function ReviewAnalysisPage() {
               <div className="ra-dropdown-menu glass-panel">
                 {products.map(p => {
                   const isChecked = selectedProducts.includes(p.id);
-                  const platformMeta = p.platform === 'oliveyoung'
-                    ? { label: '올리브영', color: '#9dce63' }
-                    : p.platform === 'naver'
-                    ? { label: '네이버', color: '#03c75a' }
-                    : p.platform === 'musinsa'
-                    ? { label: '무신사', color: '#000000' }
-                    : p.platform === 'amazon'
-                    ? { label: '아마존', color: '#FF9900' }
-                    : { label: '자사몰', color: '#2c6ecb' };
+                  const meta = PLATFORM_META[p.platform] || PLATFORM_META.default;
                   return (
-                    <label key={p.id} style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', padding: '0.6rem 0.75rem', borderRadius: '10px', cursor: 'pointer', background: isChecked ? 'rgba(157,206,99,0.08)' : 'transparent', transition: 'background 0.15s' }}>
+                    <label key={p.id} className="ra-product-dropdown-item" style={{ background: isChecked ? 'rgba(157,206,99,0.08)' : 'transparent' }}>
                       <input
                         type="checkbox"
                         checked={isChecked}
@@ -1423,18 +1457,19 @@ export default function ReviewAnalysisPage() {
                         }}
                       />
                       {p.thumbnailUrl
-                        ? <img src={p.thumbnailUrl} alt="" style={{ width: 40, height: 40, borderRadius: 8, objectFit: 'cover', flexShrink: 0, background: '#1e293b' }} />
-                        : <div style={{ width: 40, height: 40, borderRadius: 8, background: '#1e293b', flexShrink: 0 }} />
+                        ? <img src={p.thumbnailUrl} alt="" className="ra-product-thumb-sm" />
+                        : <div className="ra-product-thumb-sm" style={{ background: '#1e293b' }} />
                       }
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem', minWidth: 0 }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                          <span style={{ fontSize: '0.7rem', fontWeight: 700, padding: '0.1rem 0.4rem', borderRadius: 4, background: platformMeta.color, color: '#fff' }}>{platformMeta.label}</span>
-                          <span style={{ fontSize: '0.75rem', color: '#94a3b8' }}>{p.brandName}</span>
+                      <div className="ra-product-dropdown-info">
+                        <div className="ra-product-dropdown-top">
+                          <span className="ra-platform-badge-mini" style={{ background: meta.color }}>{meta.label}</span>
+                          <span className="ra-brand-mini">{p.brandName}</span>
                         </div>
-                        <span style={{ fontSize: '0.85rem', fontWeight: 600, color: '#fff', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '200px' }}>{p.productName}</span>
+                        <span className="ra-pname-mini">{p.productName}</span>
                       </div>
                     </label>
                   );
+
                 })}
               </div>
             )}

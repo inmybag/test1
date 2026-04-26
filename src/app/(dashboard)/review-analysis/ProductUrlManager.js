@@ -4,11 +4,15 @@ import { useState } from 'react';
 import { X, Plus, Trash2, Globe, ExternalLink } from 'lucide-react';
 
 function detectPlatform(url) {
+  if (!url) return { name: '기타', color: '#64748b' };
   if (url.includes('oliveyoung.co.kr')) return { name: '올리브영', color: '#9dce63' };
-  if (url.includes('smartstore.naver.com') || url.includes('brand.naver.com') || url.includes('shopping.naver.com')) return { name: '네이버', color: '#03c75a' };
+  if (url.includes('smartstore.naver.com') || url.includes('brand.naver.com') || url.includes('shopping.naver.com') || url.includes('naver.me')) return { name: '네이버', color: '#03c75a' };
   if (url.includes('musinsa.com')) return { name: '무신사', color: '#000000' };
+  if (url.includes('amazon.com') || url.includes('amazon.co.jp')) return { name: '아마존', color: '#FF9900' };
+  if (url.includes('tiktok.com')) return { name: '틱톡', color: '#000000' };
   return { name: '카페24', color: '#2c6ecb' };
 }
+
 
 export default function ProductUrlManager({ isOpen, onClose, products, onRefresh }) {
   const [pageUrl, setPageUrl] = useState('');
@@ -67,11 +71,12 @@ export default function ProductUrlManager({ isOpen, onClose, products, onRefresh
     <div className="ra-modal-overlay" onClick={(e) => e.target === e.currentTarget && onClose()}>
       <div className="ra-modal-content glass-panel">
         <div className="ra-modal-header">
-          <h2>제품 URL 관리</h2>
-          <button className="ra-modal-close" onClick={onClose}>
+          <h3>제품 URL 관리</h3>
+          <button onClick={onClose}>
             <X size={20} />
           </button>
         </div>
+
 
         {/* 등록 폼 */}
         <form className="ra-url-form" onSubmit={handleSubmit}>

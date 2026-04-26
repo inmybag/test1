@@ -123,10 +123,10 @@ export default function AnalysisPage() {
           title: video.title,
           platform: video.platform,
           category: video.category,
-          score: video.analysisJson.score,
-          hook: video.analysisJson.hook,
-          commentInsight: video.analysisJson.commentInsight,
-          planning: video.analysisJson.planning,
+          score: video.analysisJson?.score || 0,
+          hook: video.analysisJson?.hook || '',
+          commentInsight: video.analysisJson?.commentInsight || '',
+          planning: video.analysisJson?.planning || '',
           url: video.url,
           thumbnail: video.thumbnail,
           videoId: video.videoId,
@@ -320,7 +320,7 @@ export default function AnalysisPage() {
                     <div className="card-footer">
                       <div className="performance-info">
                         <span className="score-label">벤치마킹 성공지수</span>
-                        <div className="score-row"><span className="score-value">{video.analysisJson.score}</span><TrendingUp size={16} className="text-blue-400" /></div>
+                        <div className="score-row"><span className="score-value">{video.analysisJson?.score || 0}</span><TrendingUp size={16} className="text-blue-400" /></div>
                         <span className="date-info">수집일: {video.dateStr.replace(/(\d{4})(\d{2})(\d{2})/, '$1-$2-$3')}</span>
                       </div>
                       <button className="btn-view-report">기획 리포트 <ArrowRight size={14} /></button>
@@ -365,21 +365,21 @@ export default function AnalysisPage() {
                 <div className="insights-body custom-scrollbar">
                   <h2 className="modal-title">{selectedVideo.title}</h2>
                   <div className="analysis-block">
-                    <div className="score-header"><div className="block-label blue">SUCCESS FACTOR SCORE</div><span className="score-badge-large">{selectedVideo.analysisJson.score}</span></div>
-                    <GaugeBar score={selectedVideo.analysisJson.score} />
+                    <div className="score-header"><div className="block-label blue">SUCCESS FACTOR SCORE</div><span className="score-badge-large">{selectedVideo.analysisJson?.score || 0}</span></div>
+                    <GaugeBar score={selectedVideo.analysisJson?.score || 0} />
                   </div>
                   <div className="analysis-block">
                     <div className="block-label cyan">COMPETITOR SUCCESS HACK</div>
                     <blockquote className="hook-text">
-                      <span className="hook-label">[HOOK]</span> "{selectedVideo.analysisJson.hook}"
-                      <div className="react-insight"><Sparkles size={14} style={{ color: '#22d3ee' }} /><span>{selectedVideo.analysisJson.commentInsight}</span></div>
+                      <span className="hook-label">[HOOK]</span> "{selectedVideo.analysisJson?.hook || '분석된 훅이 없습니다.'}"
+                      <div className="react-insight"><Sparkles size={14} style={{ color: '#22d3ee' }} /><span>{selectedVideo.analysisJson?.commentInsight || '댓글 인사이트가 없습니다.'}</span></div>
                     </blockquote>
                   </div>
                   <div className="analysis-block">
                     <div className="block-label gold">AEKYUNG STRATEGIC PLANNING</div>
                     <div className="planning-box">
                       <div className="planning-content premium-report">
-                        {renderPlanningContent(selectedVideo.analysisJson.planning) || <p>기획안 로딩 중...</p>}
+                        {renderPlanningContent(selectedVideo.analysisJson?.planning) || <p>기획안 로딩 중...</p>}
                       </div>
                     </div>
                   </div>
@@ -405,9 +405,9 @@ export default function AnalysisPage() {
 
 
       <style jsx>{`
-        .analysis-page { min-height: 100vh; padding-top: 10rem; padding-bottom: 0; background-color: #050507; color: #fff; position: relative; }
+        .analysis-page { padding-top: 10rem; padding-bottom: 2rem; background-color: #050507; color: #fff; position: relative; }
         .hero-blob { position: absolute; top: -10%; right: -10%; width: 60%; height: 60%; background: radial-gradient(circle, rgba(59, 130, 246, 0.08) 0%, transparent 70%); filter: blur(80px); z-index: 0; pointer-events: none; }
-        .hero-blob-2 { position: absolute; bottom: -10%; left: -10%; width: 50%; height: 50%; background: radial-gradient(circle, rgba(168, 85, 247, 0.08) 0%, transparent 70%); filter: blur(80px); z-index: 0; pointer-events: none; }
+        .hero-blob-2 { position: absolute; bottom: 0; left: -10%; width: 50%; height: 50%; background: radial-gradient(circle, rgba(168, 85, 247, 0.08) 0%, transparent 70%); filter: blur(80px); z-index: 0; pointer-events: none; }
         .container { max-width: 1400px; margin: 0 auto; padding: 0 2rem; position: relative; z-index: 10; }
         .analysis-header { display: flex; flex-direction: column; gap: 3rem; margin-bottom: 6rem; }
         @media (min-width: 1024px) { .analysis-header { flex-direction: row; align-items: flex-end; justify-content: space-between; } }
@@ -418,8 +418,8 @@ export default function AnalysisPage() {
         .tag-btn { padding: 0.5rem 1rem; border-radius: 99rem; border: 1px solid rgba(255,255,255,0.1); background: rgba(255,255,255,0.03); color: #94a3b8; cursor: pointer; }
         .tag-btn.active { background: #3b82f633; border-color: #3b82f688; color: #60a5fa; }
         .analysis-grid { display: grid; gap: 3rem; grid-template-columns: repeat(auto-fill, minmax(350px, 1fr)); }
-        .analysis-card { background: #0d0d10; border-radius: 2.2rem; cursor: pointer; transition: all 0.4s; overflow: hidden; }
-        .analysis-card:hover { transform: translateY(-10px); background: #14141a; }
+        .analysis-card { background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08); border-radius: 2.2rem; cursor: pointer; transition: all 0.4s; overflow: hidden; }
+        .analysis-card:hover { transform: translateY(-10px); background: rgba(255,255,255,0.07); border-color: rgba(59,130,246,0.4); box-shadow: 0 20px 60px rgba(59,130,246,0.1); }
         .thumbnail-wrapper { aspect-ratio: 9/16; position: relative; overflow: hidden; }
         .thumbnail-img { width: 100%; height: 100%; object-fit: cover; }
         .card-badges { position: absolute; top: 1.5rem; left: 1.5rem; right: 1.5rem; display: flex; justify-content: space-between; }
@@ -431,6 +431,84 @@ export default function AnalysisPage() {
         .card-tags { display: flex; flex-wrap: wrap; gap: 0.4rem; margin-bottom: 1rem; }
         .card-tag { font-size: 0.7rem; color: #3b82f6; background: rgba(59,130,246,0.1); padding: 0.2rem 0.5rem; border-radius: 0.3rem; }
         .score-value { font-size: 1.5rem; font-weight: 900; color: #3b82f6; }
+
+        /* 카드 하단 영역 */
+        .card-footer { display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding-top: 1rem; border-top: 1px solid rgba(255,255,255,0.06); }
+        .performance-info { display: flex; flex-direction: column; gap: 0.25rem; }
+        .score-label { font-size: 0.7rem; color: #475569; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; }
+        .score-row { display: flex; align-items: center; gap: 0.4rem; }
+        .date-info { font-size: 0.7rem; color: #475569; }
+        .btn-view-report { display: flex; align-items: center; gap: 0.4rem; padding: 0.5rem 1rem; border-radius: 0.75rem; background: rgba(59,130,246,0.12); border: 1px solid rgba(59,130,246,0.2); color: #60a5fa; font-size: 0.75rem; font-weight: 700; cursor: pointer; white-space: nowrap; flex-shrink: 0; }
+        .btn-view-report:hover { background: rgba(59,130,246,0.22); }
+
+        /* 배지 */
+        .badge-premium { display: inline-flex; align-items: center; gap: 0.5rem; background: rgba(255,255,255,0.05); padding: 0.4rem 1rem; border-radius: 99rem; font-size: 0.72rem; font-weight: 800; color: #64748b; border: 1px solid rgba(255,255,255,0.08); margin-bottom: 1.5rem; letter-spacing: 0.1em; }
+        .badge-group { display: flex; align-items: center; gap: 0.4rem; }
+        .today-badge { display: flex; align-items: center; gap: 0.3rem; background: rgba(251,191,36,0.15); color: #fbbf24; border: 1px solid rgba(251,191,36,0.3); padding: 0.25rem 0.6rem; border-radius: 0.4rem; font-size: 0.65rem; font-weight: 700; }
+        .notion-sent-badge { display: flex; align-items: center; gap: 0.3rem; background: rgba(157,206,99,0.15); color: #9dce63; border: 1px solid rgba(157,206,99,0.3); padding: 0.25rem 0.6rem; border-radius: 0.4rem; font-size: 0.65rem; font-weight: 700; }
+        .platform-icon-wrapper { display: flex; align-items: center; background: rgba(0,0,0,0.4); padding: 0.3rem; border-radius: 0.4rem; }
+        .play-overlay { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; background: rgba(0,0,0,0); transition: background 0.3s; }
+        .analysis-card:hover .play-overlay { background: rgba(0,0,0,0.35); }
+        .play-btn-circle { width: 56px; height: 56px; border-radius: 50%; background: rgba(255,255,255,0.15); backdrop-filter: blur(8px); border: 2px solid rgba(255,255,255,0.3); display: flex; align-items: center; justify-content: center; opacity: 0; transition: opacity 0.3s; }
+        .analysis-card:hover .play-btn-circle { opacity: 1; }
+
+        /* 빈 상태 & 로더 */
+        .loader-container { display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 8rem 0; gap: 1.5rem; color: #475569; }
+        .loader-orbit { width: 60px; height: 60px; border: 3px solid rgba(59,130,246,0.1); border-top-color: #3b82f6; border-radius: 50%; animation: spin-orbit 1s linear infinite; }
+        .loader-planet { position: absolute; }
+        @keyframes spin-orbit { to { transform: rotate(360deg); } }
+        .loading-text { font-size: 1rem; color: #475569; font-weight: 500; }
+        .empty-state { display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 8rem 0; gap: 1.5rem; color: #475569; text-align: center; grid-column: 1 / -1; }
+        .btn-retry { padding: 0.75rem 2rem; border-radius: 1rem; background: #1e293b; border: 1px solid #334155; color: #94a3b8; font-weight: 600; cursor: pointer; }
+        .load-more-spinner { display: flex; align-items: center; justify-content: center; gap: 1rem; padding: 2rem; color: #475569; }
+        .mini-spinner { width: 20px; height: 20px; border: 2px solid rgba(59,130,246,0.1); border-top-color: #3b82f6; border-radius: 50%; animation: spin-orbit 0.8s linear infinite; }
+
+        /* 모달 내부 */
+        .modal-close { position: absolute; top: 1.5rem; right: 1.5rem; background: rgba(255,255,255,0.08); border: none; color: #fff; width: 40px; height: 40px; border-radius: 50%; display: flex; align-items: center; justify-content: center; cursor: pointer; z-index: 10; transition: background 0.2s; }
+        .modal-close:hover { background: rgba(239,68,68,0.2); color: #f87171; }
+        .insights-header { padding-bottom: 1.25rem; border-bottom: 1px solid rgba(255,255,255,0.06); margin-bottom: 1.5rem; }
+        .platform-meta { display: flex; align-items: center; gap: 0.5rem; font-size: 0.75rem; font-weight: 800; color: #475569; letter-spacing: 0.08em; margin-bottom: 0.75rem; }
+        .engagement-stats { display: flex; gap: 1rem; }
+        .stat { display: flex; align-items: center; gap: 0.4rem; font-size: 0.85rem; color: #64748b; }
+        .insights-body { flex: 1; overflow-y: auto; padding-right: 0.5rem; }
+        .insights-footer { padding-top: 1.25rem; border-top: 1px solid rgba(255,255,255,0.06); margin-top: 1rem; }
+        .footer-actions { display: flex; gap: 0.75rem; flex-wrap: wrap; }
+        .btn-visit { display: flex; align-items: center; gap: 0.5rem; padding: 0.7rem 1.25rem; border-radius: 0.75rem; background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.1); color: #fff; font-weight: 600; font-size: 0.875rem; text-decoration: none; transition: background 0.2s; }
+        .btn-visit:hover { background: rgba(255,255,255,0.1); }
+        .btn-notion { display: flex; align-items: center; gap: 0.5rem; padding: 0.7rem 1.25rem; border-radius: 0.75rem; background: #3b82f6; border: none; color: #fff; font-weight: 700; font-size: 0.875rem; cursor: pointer; transition: background 0.2s; text-decoration: none; }
+        .btn-notion:hover { background: #2563eb; }
+        .btn-notion.success { background: rgba(157,206,99,0.15); border: 1px solid rgba(157,206,99,0.3); color: #9dce63; }
+        .btn-notion.loading { opacity: 0.6; cursor: not-allowed; }
+        .modal-title { font-size: 1.2rem; font-weight: 800; margin-bottom: 1.5rem; line-height: 1.4; }
+
+        /* 분석 블록 */
+        .analysis-block { margin-bottom: 1.75rem; }
+        .block-label { font-size: 0.65rem; font-weight: 900; letter-spacing: 0.12em; margin-bottom: 1rem; display: inline-block; }
+        .block-label.blue { color: #3b82f6; }
+        .block-label.cyan { color: #22d3ee; }
+        .block-label.gold { color: #f59e0b; }
+        .score-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.75rem; }
+        .score-badge-large { font-size: 2.5rem; font-weight: 900; color: #3b82f6; }
+        .gauge-outer { width: 100%; height: 8px; background: rgba(255,255,255,0.06); border-radius: 4px; overflow: hidden; }
+        .gauge-inner { height: 100%; border-radius: 4px; position: relative; transition: width 0.6s cubic-bezier(0.4, 0, 0.2, 1); }
+        .gauge-glow { position: absolute; right: 0; top: -4px; width: 16px; height: 16px; border-radius: 50%; opacity: 0.6; filter: blur(4px); }
+        .hook-text { border-left: 3px solid #22d3ee; padding-left: 1rem; margin: 0; font-size: 0.95rem; line-height: 1.7; color: #e2e8f0; font-style: italic; }
+        .hook-label { color: #22d3ee; font-weight: 800; font-style: normal; font-size: 0.75rem; }
+        .react-insight { display: flex; align-items: flex-start; gap: 0.5rem; margin-top: 0.75rem; color: #64748b; font-size: 0.85rem; font-style: normal; }
+        .planning-box { background: rgba(245,158,11,0.04); border: 1px solid rgba(245,158,11,0.12); border-radius: 1rem; padding: 1.5rem; margin-top: 0.5rem; }
+        .planning-content { font-size: 0.9rem; line-height: 1.8; color: #cbd5e1; }
+        .report-h2 { font-size: 1.1rem; font-weight: 800; color: #f1f5f9; margin: 1.5rem 0 0.75rem; }
+        .report-h3 { font-size: 0.95rem; font-weight: 700; color: #94a3b8; margin: 1.25rem 0 0.5rem; }
+        .report-p { margin: 0.5rem 0; color: #94a3b8; }
+        .report-list-item { display: flex; gap: 0.5rem; margin: 0.35rem 0; color: #94a3b8; }
+        .bullet { color: #f59e0b; flex-shrink: 0; }
+        .report-bold { color: #e2e8f0; font-weight: 700; }
+        .report-spacing { height: 0.75rem; }
+        .report-table-wrapper { overflow-x: auto; margin: 1rem 0; }
+        .report-table { width: 100%; border-collapse: collapse; font-size: 0.82rem; }
+        .report-table th { background: rgba(245,158,11,0.1); color: #f59e0b; padding: 0.5rem 0.75rem; text-align: left; font-weight: 700; }
+        .report-table td { padding: 0.5rem 0.75rem; border-bottom: 1px solid rgba(255,255,255,0.04); color: #94a3b8; }
+
         .pagination { display: flex; justify-content: center; margin-top: 4rem; }
         .btn-load-more { padding: 1rem 3rem; border-radius: 1rem; background: #1e293b; color: #fff; cursor: pointer; border: 1px solid #334155; }
         .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.9); display: flex; align-items: center; justify-content: center; z-index: 2000; }
@@ -444,6 +522,22 @@ export default function AnalysisPage() {
         .page-premium { display: inline-flex; align-items: center; gap: 0.5rem; background: rgba(255, 255, 255, 0.05); padding: 0.4rem 1rem; border-radius: 99rem; font-size: 0.7rem; font-weight: 800; color: #94a3b8; border: 1px solid rgba(255, 255, 255, 0.1); margin-bottom: 1.5rem; letter-spacing: 0.1em; }
         .custom-scrollbar::-webkit-scrollbar { width: 4px; }
         .custom-scrollbar::-webkit-scrollbar-thumb { background: #334155; border-radius: 10px; }
+        
+        .filter-controls { display: flex; flex-direction: column; gap: 1rem; align-items: center; margin-top: 1rem; width: 100%; }
+        @media (min-width: 1024px) { .filter-controls { align-items: flex-end; } }
+
+        .category-nav, .platform-nav { display: flex; flex-wrap: wrap; gap: 0.5rem; justify-content: center; }
+        @media (min-width: 1024px) { .category-nav, .platform-nav { justify-content: flex-end; } }
+        .category-btn, .platform-btn { display: flex; align-items: center; gap: 0.5rem; padding: 0.75rem 1.25rem; border-radius: 99rem; font-size: 0.875rem; font-weight: 600; cursor: pointer; transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); border: 1px solid rgba(255, 255, 255, 0.05); background: rgba(255, 255, 255, 0.03); color: #94a3b8; }
+
+        .category-btn:hover, .platform-btn:hover { background: rgba(255, 255, 255, 0.08); border-color: rgba(255, 255, 255, 0.2); transform: translateY(-2px); }
+        .category-btn.active { background: #fff; color: #000; border-color: #fff; box-shadow: 0 4px 15px rgba(255,255,255,0.2); }
+
+        .platform-btn.active { color: #fff; box-shadow: 0 4px 15px rgba(0,0,0,0.3); }
+        .platform-btn.active.youtube { background: linear-gradient(135deg, #ef4444, #dc2626); border-color: #ef4444; }
+        .platform-btn.active.instagram { background: linear-gradient(135deg, #ec4899, #db2777); border-color: #ec4899; }
+        .platform-btn.active.tiktok { background: linear-gradient(135deg, #22d3ee, #06b6d4); border-color: #22d3ee; }
+        .platform-btn.active.All { background: linear-gradient(135deg, #6366f1, #4f46e5); border-color: #6366f1; }
       `}</style>
     </main>
   );

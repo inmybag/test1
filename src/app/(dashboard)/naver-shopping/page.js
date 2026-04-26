@@ -364,7 +364,6 @@ export default function NaverShoppingPage() {
           background-color: #050507;
           color: #fff;
           position: relative;
-          overflow-x: hidden;
         }
 
         .hero-blob {
@@ -381,7 +380,7 @@ export default function NaverShoppingPage() {
 
         .hero-blob-2 {
           position: absolute;
-          bottom: -10%;
+          bottom: 0;
           left: -10%;
           width: 50%;
           height: 50%;
