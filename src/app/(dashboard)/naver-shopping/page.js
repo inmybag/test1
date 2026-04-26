@@ -37,23 +37,6 @@ ChartJS.register(
   Filler
 );
 
-// Rank Change Component
-const RankChangeBadge = ({ change }) => {
-  if (change === 'NEW') {
-    return <span className="change-badge new">NEW</span>;
-  }
-  
-  if (change > 0) {
-    return <span className="change-badge up">▲{change}</span>;
-  }
-  
-  if (change < 0) {
-    return <span className="change-badge down">▼{Math.abs(change)}</span>;
-  }
-  
-  return <span className="change-badge same">-</span>;
-};
-
 export default function NaverShoppingPage() {
   const [loading, setLoading] = useState(true);
   const [rankings, setRankings] = useState([]);
@@ -66,6 +49,23 @@ export default function NaverShoppingPage() {
   const [selectedKeyword, setSelectedKeyword] = useState(null);
   const [keywordHistory, setKeywordHistory] = useState(null);
   const [historyLoading, setHistoryLoading] = useState(false);
+
+  // Rank Change Component (Inside to inherit styles)
+  const RankChangeIcon = ({ change }) => {
+    if (change === 'NEW') {
+      return <span className="change-badge new">NEW</span>;
+    }
+    
+    if (change > 0) {
+      return <span className="change-badge up">▲{change}</span>;
+    }
+    
+    if (change < 0) {
+      return <span className="change-badge down">▼{Math.abs(change)}</span>;
+    }
+    
+    return <span className="change-badge same">-</span>;
+  };
 
   // 초기 데이터 (날짜 리스트) 가져오기
   useEffect(() => {
@@ -257,7 +257,7 @@ export default function NaverShoppingPage() {
                       <div className="keyword-info">
                         <div className="name-wrapper">
                           <span className="keyword-name">{item.keyword}</span>
-                          <RankChangeBadge change={item.rankChange} />
+                          <RankChangeIcon change={item.rankChange} />
                         </div>
                         <div className="keyword-trend">
                           <ArrowUpRight size={14} />
@@ -296,7 +296,7 @@ export default function NaverShoppingPage() {
                       <span className="item-rank">{item.rank}</span>
                       <span className="item-name">{item.keyword}</span>
                       <div className="item-change-box">
-                        <RankChangeBadge change={item.rankChange} />
+                        <RankChangeIcon change={item.rankChange} />
                       </div>
                       <div className="item-action">
                         <ChevronRight size={16} />
