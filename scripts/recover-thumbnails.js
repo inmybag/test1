@@ -11,17 +11,28 @@ async function recoverYouTube(videoId) {
 
 async function captureElementAsBase64(page, selector) {
   try {
+    console.log(`      📸 Attempting screenshot for selector: ${selector}`);
     const element = await page.$(selector);
-    if (!element) return null;
+    if (!element) {
+      console.error(`      ❌ Element not found for selector: ${selector}`);
+      return null;
+    }
     
-    // Ensure element is visible
+    // Ensure element is visible and has size
+    const box = await element.boundingBox();
+    if (!box || box.width === 0 || box.height === 0) {
+      console.error(`      ❌ Element has no size: ${JSON.stringify(box)}`);
+      return null;
+    }
+
     await element.scrollIntoViewIfNeeded();
-    await new Promise(r => setTimeout(r, 500));
+    await new Promise(r => setTimeout(r, 1000));
     
     const base64 = await element.screenshot({ encoding: 'base64' });
+    console.log(`      ✅ Screenshot success! (Base64 length: ${base64.length})`);
     return `data:image/png;base64,${base64}`;
   } catch (error) {
-    console.error(`      ⚠️ Screenshot failed: ${error.message}`);
+    console.error(`      ❌ Screenshot fatal error: ${error.message}`);
     return null;
   }
 }
@@ -29,49 +40,62 @@ async function captureElementAsBase64(page, selector) {
 async function fetchFreshThumbnail(browser, url, platform) {
   const page = await browser.newPage();
   try {
-    // Set a larger viewport to ensure image is not clipped
     await page.setViewport({ width: 1280, height: 1200 });
     await page.setUserAgent('Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36');
     
     console.log(`    🔍 Visiting: ${url}`);
-    const response = await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 35000 });
+    const response = await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 45000 });
     
     if (!response || response.status() >= 400) {
-      console.error(`    ⚠️ Received status ${response ? response.status() : 'null'}`);
+      console.error(`    ⚠️ Status error: ${response ? response.status() : 'null'}`);
       return null;
     }
 
-    await new Promise(r => setTimeout(r, 6000));
+    // Wait a bit more for dynamic content
+    await new Promise(r => setTimeout(r, 8000));
     await page.evaluate(() => window.scrollBy(0, 500));
     await new Promise(r => setTimeout(r, 2000));
 
-    const bestSelector = await page.evaluate((plat) => {
+    const debugInfo = await page.evaluate((plat) => {
       const imgs = Array.from(document.querySelectorAll('img'));
       const platformCdn = plat === 'tiktok' ? 'tiktokcdn' : 'cdninstagram';
       
-      const valid = imgs.map((img, idx) => {
+      const stats = imgs.map((img, idx) => {
         const src = img.src || '';
         const isCdn = src.includes(platformCdn);
-        const isLarge = img.width > 120 && img.height > 120;
-        return { idx, isCdn, isLarge, score: (isCdn ? 10 : 0) + (isLarge ? 5 : 0) };
-      }).filter(v => v.score > 0);
+        const isLarge = img.width > 50 && img.height > 50;
+        const score = (isCdn ? 10 : 0) + (isLarge ? 5 : 0);
+        if (score > 0) {
+          img.id = `debug-thumb-${idx}-${Date.now()}`;
+        }
+        return { 
+          idx, 
+          src: src.substring(0, 40) + '...', 
+          w: img.width, 
+          h: img.height, 
+          isCdn, 
+          score,
+          selector: img.id ? `#${img.id}` : null
+        };
+      }).filter(s => s.score > 0);
 
-      if (valid.length > 0) {
-        valid.sort((a, b) => b.score - a.score);
-        const best = imgs[valid[0].idx];
-        // Give it a temporary ID to find it from node
-        best.id = 'target-thumb-' + Date.now();
-        return '#' + best.id;
-      }
-      return null;
+      stats.sort((a, b) => b.score - a.score);
+      return { total: imgs.length, filtered: stats.length, best: stats[0] || null };
     }, platform);
 
-    if (bestSelector) {
+    console.log(`    📊 Page Summary: ${debugInfo.total} images total, ${debugInfo.filtered} candidates found.`);
+    
+    if (debugInfo.best && debugInfo.best.selector) {
       console.log(`    📸 Capturing element screenshot...`);
-      return await captureElementAsBase64(page, bestSelector);
+      return await captureElementAsBase64(page, debugInfo.best.selector);
+    } else {
+      console.warn(`    ⚠️ No thumbnail candidates found on page.`);
+      // Take a full page screenshot for debug if everything fails
+      const debugName = `debug_fail_${Date.now()}.png`;
+      await page.screenshot({ path: debugName });
+      console.log(`    🖼️ Saved failure screenshot: ${debugName}`);
+      return null;
     }
-
-    return thumbUrl;
   } catch (error) {
     console.error(`    ❌ Failed to fetch for ${url}: ${error.message}`);
     return null;
@@ -118,9 +142,13 @@ async function recover() {
       newThumbnail = await fetchFreshThumbnail(browser, row.url, row.platform);
     }
 
-    if (newThumbnail && !newThumbnail.startsWith('data:image')) {
+    // Allow data:image if it's long (actual screenshot) vs short (placeholder)
+    const isValidBase64 = newThumbnail && newThumbnail.startsWith('data:image') && newThumbnail.length > 1000;
+    const isValidUrl = newThumbnail && !newThumbnail.startsWith('data:image');
+
+    if (isValidBase64 || isValidUrl) {
       await pool.query('UPDATE video_analyses SET thumbnail = $1 WHERE id = $2', [newThumbnail, row.id]);
-      console.log(`  ✅ Recovered: ${newThumbnail.substring(0, 60)}...`);
+      console.log(`  ✅ Recovered: ${newThumbnail.substring(0, 50)}... (${newThumbnail.length} chars)`);
       recoveredCount++;
     } else {
       console.log('  ⚠️ Could not recover valid thumbnail.');

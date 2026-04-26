@@ -7,7 +7,6 @@ export default function AnalysisPage() {
   const [videos, setVideos] = useState([]);
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
-  const [showTopButton, setShowTopButton] = useState(false);
   const [category, setCategory] = useState('All');
   const [platform, setPlatform] = useState('All');
   const [selectedTag, setSelectedTag] = useState('All');
@@ -22,13 +21,6 @@ export default function AnalysisPage() {
 
   useEffect(() => {
     setMounted(true);
-    const handleScroll = () => {
-      const scrollPos = window.scrollY || document.documentElement.scrollTop;
-      setShowTopButton(scrollPos > 300);
-    };
-    window.addEventListener('scroll', handleScroll, { passive: true });
-    handleScroll();
-    return () => window.removeEventListener('scroll', handleScroll);
   }, []);
 
   useEffect(() => {
@@ -410,12 +402,7 @@ export default function AnalysisPage() {
         </div>
       )}
 
-      {showTopButton && (
-        <button className="btn-top" onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}>
-          <TrendingUp size={24} style={{ transform: 'rotate(-90deg)' }} />
-          <span>TOP</span>
-        </button>
-      )}
+
 
       <style jsx>{`
         .analysis-page { min-height: 100vh; padding-top: 10rem; padding-bottom: 3rem; background-color: #050507; color: #fff; position: relative; }
@@ -453,7 +440,7 @@ export default function AnalysisPage() {
         .insights-section { flex: 0.8; padding: 2rem; overflow-y: auto; display: flex; flex-direction: column; }
         .player-wrapper { width: 100%; height: 100%; }
         .embed-frame { width: 100%; height: 100%; border: none; }
-        .btn-top { position: fixed; bottom: 2rem; right: 2rem; width: 3.5rem; height: 3.5rem; border-radius: 50%; background: #fff; color: #000; display: flex; flex-direction: column; align-items: center; justify-content: center; cursor: pointer; z-index: 1000; border: none; font-weight: 900; }
+
         .page-premium { display: inline-flex; align-items: center; gap: 0.5rem; background: rgba(255, 255, 255, 0.05); padding: 0.4rem 1rem; border-radius: 99rem; font-size: 0.7rem; font-weight: 800; color: #94a3b8; border: 1px solid rgba(255, 255, 255, 0.1); margin-bottom: 1.5rem; letter-spacing: 0.1em; }
         .custom-scrollbar::-webkit-scrollbar { width: 4px; }
         .custom-scrollbar::-webkit-scrollbar-thumb { background: #334155; border-radius: 10px; }

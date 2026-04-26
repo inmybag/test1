@@ -1,6 +1,8 @@
 import '../../styles/globals.css';
 import Navbar from '@/components/Navbar';
 import LoginGuard from '@/components/LoginGuard';
+import Footer from '@/components/Footer';
+import ScrollToTop from '@/components/ScrollToTop';
 
 export default function DashboardLayout({ children }) {
   return (
@@ -11,7 +13,9 @@ export default function DashboardLayout({ children }) {
       </div>
       <LoginGuard>
         <Navbar />
-        {children}
+        <main>{children}</main>
+        <Footer />
+        <ScrollToTop />
       </LoginGuard>
     </>
   );
