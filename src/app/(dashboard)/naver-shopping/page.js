@@ -624,35 +624,47 @@ export default function NaverShoppingPage() {
           flex-wrap: wrap;
         }
 
-        .change-badge {
-          font-size: 0.75rem;
+        .item-change-box {
+          min-width: 65px;
+          display: flex;
+          justify-content: flex-end;
+          align-items: center;
+        }
+
+        :global(.change-badge) {
+          font-size: 0.7rem;
           font-weight: 800;
-          padding: 0.2rem 0.6rem;
-          border-radius: 0.4rem;
-          letter-spacing: 0;
+          padding: 0.2rem 0.5rem;
+          border-radius: 4px;
+          letter-spacing: -0.02em;
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          white-space: nowrap;
         }
 
-        .change-badge.new {
-          background: rgba(245, 158, 11, 0.15);
-          color: #f59e0b;
-          border: 1px solid rgba(245, 158, 11, 0.3);
+        :global(.change-badge.new) {
+          background: rgba(245, 158, 11, 0.15) !important;
+          color: #f59e0b !important;
+          border: 1px solid rgba(245, 158, 11, 0.4) !important;
         }
 
-        .change-badge.up {
-          background: rgba(16, 185, 129, 0.15);
-          color: #10b981;
-          border: 1px solid rgba(16, 185, 129, 0.3);
+        :global(.change-badge.up) {
+          background: rgba(16, 185, 129, 0.15) !important;
+          color: #10b981 !important;
+          border: 1px solid rgba(16, 185, 129, 0.4) !important;
         }
 
-        .change-badge.down {
-          background: rgba(239, 68, 68, 0.15);
-          color: #ef4444;
-          border: 1px solid rgba(239, 68, 68, 0.3);
+        :global(.change-badge.down) {
+          background: rgba(239, 68, 68, 0.15) !important;
+          color: #ef4444 !important;
+          border: 1px solid rgba(239, 68, 68, 0.4) !important;
         }
 
-        .change-badge.same {
-          background: rgba(255, 255, 255, 0.05);
-          color: #64748b;
+        :global(.change-badge.same) {
+          background: rgba(255, 255, 255, 0.05) !important;
+          color: #64748b !important;
+          border: 1px solid rgba(255, 255, 255, 0.1) !important;
         }
 
         .section-header {
