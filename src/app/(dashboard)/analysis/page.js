@@ -6,6 +6,8 @@ import { Video, Play, BarChart2, Info, ArrowRight, Youtube, Instagram, Music, Ex
 export default function AnalysisPage() {
   const [videos, setVideos] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [showTopButton, setShowTopButton] = useState(false);
   const [category, setCategory] = useState('All');
   const [platform, setPlatform] = useState('All');
   const [selectedTag, setSelectedTag] = useState('All');
@@ -20,6 +22,15 @@ export default function AnalysisPage() {
 
   useEffect(() => {
     setMounted(true);
+    // Ensure we handle both window and container scroll if layout differs
+    const handleScroll = () => {
+      const scrollPos = window.scrollY || document.documentElement.scrollTop;
+      setShowTopButton(scrollPos > 300);
+    };
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    // Also check on mount in case already scrolled
+    handleScroll();
+    return () => window.removeEventListener('scroll', handleScroll);
   }, []);
 
   useEffect(() => {
@@ -54,7 +65,9 @@ export default function AnalysisPage() {
   }, [category, platform]);
 
   const fetchResults = async (isLoadMore = false) => {
-    setLoading(true);
+    if (isLoadMore) setLoadingMore(true);
+    else setLoading(true);
+    
     try {
       const currentPage = isLoadMore ? page + 1 : 1;
       let queryParams = `?page=${currentPage}&limit=24`; // Increased limit since we have more categories
@@ -75,6 +88,7 @@ export default function AnalysisPage() {
             if (video.videoId) uniqueMap.set(video.videoId, video);
           });
           const result = Array.from(uniqueMap.values());
+          // Extract tags only for the final result
           extractTags(result);
           return result;
         });
@@ -92,7 +106,8 @@ export default function AnalysisPage() {
     } catch (err) {
       console.error(err);
     } finally {
-      setLoading(false);
+      if (isLoadMore) setLoadingMore(false);
+      else setLoading(false);
     }
   };
 
@@ -137,7 +152,7 @@ export default function AnalysisPage() {
       if (result.success) {
         video.isSentToNotion = true;
         video.notionUrl = result.url;
-        setVideos([...videos]); 
+        setVideos(prev => [...prev]); // Trigger re-render correctly
         alert('🚀 마케팅부문 노션 페이지로 성공적으로 전송되었습니다!');
       } else {
         alert('❌ 노션 전송 중 오류가 발생했습니다: ' + result.error);
@@ -397,16 +412,17 @@ export default function AnalysisPage() {
           </div>
         </section>
 
-        {loading ? (
+        {loading && !loadingMore ? (
           <div className="loader-container">
             <div className="loader-orbit">
               <div className="loader-planet"></div>
             </div>
-            <p className="loading-text">인기 쇼츠의 성과 데이터를 정밀 분석 중입니다...</p>
+            <p className="loading-text">인기 성과 데이터를 분석 중입니다...</p>
           </div>
         ) : (
-          <div className="analysis-grid">
-            {filteredVideos.length > 0 ? filteredVideos.map((video) => (
+          <>
+            <div className="analysis-grid">
+              {filteredVideos.length > 0 ? filteredVideos.map((video) => (
               <div 
                 key={video.videoId} 
                 className={`analysis-card ${hoveredId === video.videoId ? 'hovered' : ''}`}
@@ -502,17 +518,35 @@ export default function AnalysisPage() {
           </div>
         )}
 
-        {!loading && videos.length > 0 && page < totalPages && selectedTag === 'All' && (
-          <div className="pagination">
-            <button 
-              className="btn-load-more"
-              onClick={() => fetchResults(true)}
-              disabled={loading}
-            >
-              영상 더 불러오기 (전체 {totalPages}페이지 중 {page}페이지) <ArrowRight size={18} />
-            </button>
-          </div>
+            {loadingMore && (
+              <div className="load-more-spinner">
+                <div className="mini-spinner"></div>
+                <span>데이터 추가 분석 중...</span>
+              </div>
+            )}
+
+            {!loading && videos.length > 0 && page < totalPages && selectedTag === 'All' && (
+              <div className="pagination">
+                <button 
+                  className="btn-load-more"
+                  onClick={() => fetchResults(true)}
+                  disabled={loadingMore}
+                >
+                  {loadingMore ? '분석 데이터 불러오는 중...' : `영상 더 불러오기 (전체 ${totalPages}페이지 중 ${page}페이지)`} 
+                  {!loadingMore && <ArrowRight size={18} />}
+                </button>
+              </div>
+            )}
+          </>
         )}
+      </div>
+
+      {showTopButton && (
+        <button className="btn-top" onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}>
+          <TrendingUp size={24} style={{ transform: 'rotate(-90deg)' }} />
+          <span>TOP</span>
+        </button>
+      )}
 
 
         {selectedVideo && (
@@ -671,11 +705,10 @@ export default function AnalysisPage() {
         .analysis-page {
           min-height: 100vh;
           padding-top: 10rem;
-          padding-bottom: 6rem;
+          padding-bottom: 3rem;
           background-color: #050507;
           color: #fff;
           position: relative;
-          overflow-x: hidden;
         }
 
         .hero-blob {
@@ -903,7 +936,7 @@ export default function AnalysisPage() {
           justify-content: center;
           gap: 1rem;
           margin-top: 4rem;
-          padding-bottom: 2rem;
+          padding-bottom: 4rem;
         }
         .page-btn {
           background: rgba(255, 255, 255, 0.05);
@@ -1535,6 +1568,64 @@ export default function AnalysisPage() {
         .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
         .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.08); border-radius: 10px; }
         .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: rgba(255, 255, 255, 0.15); }
+
+        .load-more-spinner {
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          gap: 1rem;
+          margin-top: 3rem;
+          color: #64748b;
+          font-size: 0.9rem;
+          font-weight: 600;
+        }
+
+        .mini-spinner {
+          width: 24px;
+          height: 24px;
+          border: 2px solid rgba(59, 130, 246, 0.1);
+          border-top-color: #3b82f6;
+          border-radius: 50%;
+          animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        .btn-top {
+          position: fixed;
+          bottom: 3rem;
+          right: 3rem;
+          width: 4rem;
+          height: 4rem;
+          border-radius: 50%;
+          background: rgba(13, 13, 16, 0.8);
+          backdrop-filter: blur(20px);
+          border: 1px solid rgba(255, 255, 255, 0.1);
+          color: #fff;
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          justify-content: center;
+          gap: 0.2rem;
+          cursor: pointer;
+          z-index: 1000;
+          transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+          box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+        }
+
+        .btn-top:hover {
+          transform: translateY(-5px);
+          background: #fff;
+          color: #000;
+          border-color: #fff;
+          box-shadow: 0 20px 40px rgba(0, 0, 0, 0.6);
+        }
+
+        .btn-top span {
+          font-size: 0.6rem;
+          font-weight: 900;
+          letter-spacing: 0.1em;
+        }
       `}</style>
     </main>
   );
