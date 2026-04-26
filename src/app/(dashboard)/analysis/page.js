@@ -405,7 +405,7 @@ export default function AnalysisPage() {
 
 
       <style jsx>{`
-        .analysis-page { min-height: 100vh; padding-top: 10rem; padding-bottom: 3rem; background-color: #050507; color: #fff; position: relative; }
+        .analysis-page { min-height: 100vh; padding-top: 10rem; padding-bottom: 0; background-color: #050507; color: #fff; position: relative; }
         .hero-blob { position: absolute; top: -10%; right: -10%; width: 60%; height: 60%; background: radial-gradient(circle, rgba(59, 130, 246, 0.08) 0%, transparent 70%); filter: blur(80px); z-index: 0; pointer-events: none; }
         .hero-blob-2 { position: absolute; bottom: -10%; left: -10%; width: 50%; height: 50%; background: radial-gradient(circle, rgba(168, 85, 247, 0.08) 0%, transparent 70%); filter: blur(80px); z-index: 0; pointer-events: none; }
         .container { max-width: 1400px; margin: 0 auto; padding: 0 2rem; position: relative; z-index: 10; }

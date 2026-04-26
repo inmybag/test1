@@ -225,7 +225,7 @@ export default function NaverTrendPage() {
         .trend-page {
           min-height: 100vh;
           padding-top: 10rem;
-          padding-bottom: 6rem;
+          padding-bottom: 0;
           background-color: #050507;
           color: #fff;
           position: relative;
