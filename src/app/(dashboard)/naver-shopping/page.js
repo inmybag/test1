@@ -37,6 +37,23 @@ ChartJS.register(
   Filler
 );
 
+// Rank Change Component
+const RankChangeBadge = ({ change }) => {
+  if (change === 'NEW') {
+    return <span className="change-badge new">NEW</span>;
+  }
+  
+  if (change > 0) {
+    return <span className="change-badge up">▲{change}</span>;
+  }
+  
+  if (change < 0) {
+    return <span className="change-badge down">▼{Math.abs(change)}</span>;
+  }
+  
+  return <span className="change-badge same">-</span>;
+};
+
 export default function NaverShoppingPage() {
   const [loading, setLoading] = useState(true);
   const [rankings, setRankings] = useState([]);
@@ -179,7 +196,10 @@ export default function NaverShoppingPage() {
               <span>SHOPPING INSIGHT</span>
             </div>
             <h1 className="title-gradient">네이버 쇼핑 인기 검색어</h1>
-            <p className="subtitle">화장품/미용 카테고리 실시간 TOP 500 마켓 트렌드</p>
+            <p className="subtitle">
+              화장품/미용 카테고리 실시간 TOP 500 마켓 트렌드 
+              <span className="comparison-info"> (일주일 전 순위 대비 변동률 포함)</span>
+            </p>
           </div>
           
           <div className="header-right">
@@ -235,7 +255,10 @@ export default function NaverShoppingPage() {
                     >
                       <div className="rank-badge">{item.rank}</div>
                       <div className="keyword-info">
-                        <span className="keyword-name">{item.keyword}</span>
+                        <div className="name-wrapper">
+                          <span className="keyword-name">{item.keyword}</span>
+                          <RankChangeBadge change={item.rankChange} />
+                        </div>
                         <div className="keyword-trend">
                           <ArrowUpRight size={14} />
                           <span>상세 히스토리 보기</span>
@@ -272,6 +295,9 @@ export default function NaverShoppingPage() {
                     >
                       <span className="item-rank">{item.rank}</span>
                       <span className="item-name">{item.keyword}</span>
+                      <div className="item-change-box">
+                        <RankChangeBadge change={item.rankChange} />
+                      </div>
                       <div className="item-action">
                         <ChevronRight size={16} />
                       </div>
@@ -410,9 +436,15 @@ export default function NaverShoppingPage() {
         }
 
         .subtitle {
-          font-size: 1.125rem;
           color: #64748b;
           font-weight: 500;
+        }
+
+        .comparison-info {
+          font-size: 0.875rem;
+          color: #3b82f6;
+          opacity: 0.8;
+          margin-left: 0.5rem;
         }
 
         .header-right {
@@ -584,6 +616,45 @@ export default function NaverShoppingPage() {
           transform: rotate(-15deg);
         }
 
+        .name-wrapper {
+          display: flex;
+          align-items: center;
+          gap: 1rem;
+          margin-bottom: 0.5rem;
+          flex-wrap: wrap;
+        }
+
+        .change-badge {
+          font-size: 0.75rem;
+          font-weight: 800;
+          padding: 0.2rem 0.6rem;
+          border-radius: 0.4rem;
+          letter-spacing: 0;
+        }
+
+        .change-badge.new {
+          background: rgba(245, 158, 11, 0.15);
+          color: #f59e0b;
+          border: 1px solid rgba(245, 158, 11, 0.3);
+        }
+
+        .change-badge.up {
+          background: rgba(16, 185, 129, 0.15);
+          color: #10b981;
+          border: 1px solid rgba(16, 185, 129, 0.3);
+        }
+
+        .change-badge.down {
+          background: rgba(239, 68, 68, 0.15);
+          color: #ef4444;
+          border: 1px solid rgba(239, 68, 68, 0.3);
+        }
+
+        .change-badge.same {
+          background: rgba(255, 255, 255, 0.05);
+          color: #64748b;
+        }
+
         .section-header {
           display: flex;
           justify-content: space-between;
@@ -628,6 +699,12 @@ export default function NaverShoppingPage() {
           flex: 1;
           font-weight: 600;
           color: #cbd5e1;
+        }
+
+        .item-change-box {
+          min-width: 60px;
+          display: flex;
+          justify-content: flex-end;
         }
 
         .item-action {

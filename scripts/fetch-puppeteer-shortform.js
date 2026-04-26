@@ -95,69 +95,69 @@ function delay(ms) {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
 
+async function captureElementAsBase64(page, element) {
+  try {
+    await element.scrollIntoViewIfNeeded();
+    await delay(500);
+    const base64 = await element.screenshot({ encoding: 'base64' });
+    return `data:image/png;base64,${base64}`;
+  } catch (error) {
+    return null;
+  }
+}
+
 async function fetchTikTok(browser, keyword_en, keyword_ko, category, count) {
   const page = await browser.newPage();
   try {
+    await page.setViewport({ width: 1280, height: 1000 });
     console.log(`  🔍 TikTok 검색 중: ${keyword_ko} (${keyword_en})`);
-    // 'tiktok viral' 대신 '2024 2025 viral' 등을 섞어 최신성 유도
     const q = encodeURIComponent(`${keyword_en} viral 2025`);
     const url = `https://www.tiktok.com/search/video?q=${q}`;
-    await page.goto(url, { waitUntil: 'networkidle2', timeout: 30000 });
+    await page.goto(url, { waitUntil: 'networkidle2', timeout: 35000 });
     
-    // Scroll down to trigger lazy loading of images
     await page.evaluate(() => window.scrollBy(0, 500));
     await delay(3000);
     
-    const videos = await page.evaluate((category, count, parseMetricFnStr) => {
-      const parseMetric = new Function("return " + parseMetricFnStr)();
-      const items = [];
-      const videoCards = document.querySelectorAll('div[data-e2e="search_video-item"], div[class*="DivVideoItem"]');
-      
-      videoCards.forEach((el, index) => {
-        if (items.length >= count) return;
-        const aTag = el.querySelector('a[href*="/video/"]');
-        if (!aTag) return;
-        
-        const url = aTag.href;
-        let video_id = url.split('/video/')[1]?.split('?')[0];
-        if (!video_id || items.some(i => i.video_id === video_id)) return;
-        
-        const titleEl = el.querySelector('div[data-e2e="search-card-video-caption"], .video-desc, .desc');
-        const title = titleEl ? titleEl.innerText : "TikTok 벤치마킹 영상";
-        
-        const thumbEl = el.querySelector('img');
-        let thumbnail = thumbEl ? thumbEl.src : '';
-        
-        // Skip placeholders
-        if (thumbnail.startsWith('data:image')) {
-           // Try to find another img or wait for it
-           thumbnail = ''; 
-        }
+    const elements = await page.$$('div[data-e2e="search_video-item"], div[class*="DivVideoItem"]');
+    const videos = [];
 
-        const viewEl = el.querySelector('strong[data-e2e="video-views"], .video-count, .views');
-        const viewCount = viewEl ? parseMetric(viewEl.innerText) : 0;
-        
-        const rankScore = (count - index) * 1000;
-        
-        if (thumbnail) {
-          items.push({
-            platform: 'tiktok',
-            video_id: video_id,
-            url: url,
-            title: title,
-            thumbnail: thumbnail,
-            category: category,
-            view_count: viewCount || rankScore,
-            like_count: 0,
-            comment_count: 0,
-            description: `[TikTok Trending] ${category} 카테고리 최신 영상`
-          });
+    for (let i = 0; i < elements.length && videos.length < count; i++) {
+        const el = elements[i];
+        const videoData = await el.evaluate((category) => {
+            const aTag = document.querySelector('a[href*="/video/"]');
+            if (!aTag) return null;
+            const url = aTag.href;
+            const video_id = url.split('/video/')[1]?.split('?')[0];
+            const titleEl = document.querySelector('div[data-e2e="search-card-video-caption"], .video-desc, .desc');
+            const title = titleEl ? titleEl.innerText : "TikTok 벤치마킹 영상";
+            const viewEl = document.querySelector('strong[data-e2e="video-views"], .video-count, .views');
+            return { video_id, url, title, viewText: viewEl ? viewEl.innerText : '0' };
+        }, category);
+
+        if (!videoData || videos.some(v => v.video_id === videoData.video_id)) continue;
+
+        // Find the best img element inside this card
+        const thumbImg = await el.$('img[src*="tiktokcdn"]');
+        if (thumbImg) {
+            const base64 = await captureElementAsBase64(page, thumbImg);
+            if (base64) {
+                videos.push({
+                    platform: 'tiktok',
+                    video_id: videoData.video_id,
+                    url: videoData.url,
+                    title: videoData.title,
+                    thumbnail: base64,
+                    category: category,
+                    view_count: parseMetric(videoData.viewText),
+                    like_count: 0,
+                    comment_count: 0,
+                    description: `[TikTok Trending] ${category} 카테고리 최신 영상`
+                });
+            }
         }
-      });
-      return items;
-    }, category, count, parseMetric.toString());
+    }
     
-    console.log(`  ✅ TikTok [${keyword_ko}]: ${videos.length}개 후보군 확보`);
+    console.log(`  ✅ TikTok [${keyword_ko}]: ${videos.length}개 후보군 확보 (Screenshot 캡처 완료)`);
     return videos;
   } catch (error) {
     console.log(`  ❌ TikTok 수집 실패 (${keyword_ko}): ${error.message}`);
@@ -170,6 +170,7 @@ async function fetchTikTok(browser, keyword_en, keyword_ko, category, count) {
 async function fetchInstagram(browser, keyword_en, keyword_ko, category, count) {
   const page = await browser.newPage();
   try {
+    await page.setViewport({ width: 1280, height: 1000 });
     console.log(`  🔍 Instagram 태그 검색 중: ${keyword_ko}`);
     const q = encodeURIComponent(keyword_ko);
     const url = `https://www.instagram.com/explore/tags/${q}/`;
@@ -178,50 +179,51 @@ async function fetchInstagram(browser, keyword_en, keyword_ko, category, count) 
         'Accept-Language': 'ko-KR,ko;q=0.9,en-US;q=0.8,en;q=0.7'
     });
     
-    await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 30000 });
-    await delay(5000);
+    await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 35000 });
+    await delay(6000);
     
-    const currentUrl = page.url();
-    if (currentUrl.includes('/login/')) {
+    if (page.url().includes('/login/')) {
         throw new Error("비로그인 접속 차단 (로그인 페이지로 강제 리다이렉트됨).");
     }
 
-    const videos = await page.evaluate((category, count, parseMetricFnStr) => {
-      const parseMetric = new Function("return " + parseMetricFnStr)();
-      const items = [];
-      const links = document.querySelectorAll('a[href*="/p/"], a[href*="/reel/"]');
-      
-      links.forEach((a, index) => {
-        if (items.length >= count) return;
-        const url = a.href;
-        let type = url.includes('/reel/') ? '/reel/' : '/p/';
-        let video_id = url.split(type)[1]?.split('/')[0];
-        
-        if (!video_id || items.some(i => i.video_id === video_id)) return;
-        
-        const img = a.querySelector('img');
-        const thumbnail = (img && !img.src.includes('data:image')) ? img.src : '';
-        const desc = img ? img.alt : '';
-        
-        const rankScore = (count - index) * 5000;
-        
-        items.push({
-          platform: 'instagram',
-          video_id: video_id,
-          url: url,
-          title: `Instagram Post - ${video_id}`,
-          thumbnail: thumbnail,
-          category: category,
-          view_count: rankScore, 
-          like_count: 0,
-          comment_count: 0,
-          description: `[Instagram Trending] ${category} 인기 태그 영상`
-        });
-      });
-      return items;
-    }, category, count, parseMetric.toString());
+    const elements = await page.$$('a[href*="/p/"], a[href*="/reel/"]');
+    const videos = [];
 
-    console.log(`  ✅ Instagram [${keyword_ko}]: ${videos.length}개 후보군 확보`);
+    for (let i = 0; i < elements.length && videos.length < count; i++) {
+        const el = elements[i];
+        const videoData = await el.evaluate(() => {
+            const url = document.location.href; // This evaluate runs in the context of the link el? No, it's problematic.
+            // Simplified:
+            return { href: window.location.href }; // Wait, evaluate on element handles is tricky.
+        });
+        
+        // Re-evaluate to get href correctly
+        const href = await page.evaluate(el => el.href, el);
+        let type = href.includes('/reel/') ? '/reel/' : '/p/';
+        let video_id = href.split(type)[1]?.split('/')[0];
+        if (!video_id || videos.some(v => v.video_id === video_id)) continue;
+
+        const thumbImg = await el.$('img');
+        if (thumbImg) {
+            const base64 = await captureElementAsBase64(page, thumbImg);
+            if (base64) {
+                videos.push({
+                    platform: 'instagram',
+                    video_id: video_id,
+                    url: href,
+                    title: `Instagram Post - ${video_id}`,
+                    thumbnail: base64,
+                    category: category,
+                    view_count: (count - i) * 5000,
+                    like_count: 0,
+                    comment_count: 0,
+                    description: `[Instagram Trending] ${category} 인기 태그 영상`
+                });
+            }
+        }
+    }
+
+    console.log(`  ✅ Instagram [${keyword_ko}]: ${videos.length}개 후보군 확보 (Screenshot 캡처 완료)`);
     return videos;
   } catch (error) {
     console.log(`  ❌ Instagram 수집 실패 (${keyword_ko}): ${error.message}`);

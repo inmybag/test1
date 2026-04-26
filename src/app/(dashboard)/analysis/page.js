@@ -415,7 +415,7 @@ export default function AnalysisPage() {
                 onClick={() => setSelectedVideo(video)}
               >
                 <div className="thumbnail-wrapper">
-                  {video.thumbnail && !video.thumbnail.startsWith('data:image') ? (
+                  {video.thumbnail ? (
                     <img 
                       src={video.thumbnail} 
                       alt={video.title} 
@@ -433,7 +433,7 @@ export default function AnalysisPage() {
                       }}
                     />
                   ) : null}
-                  <div className="thumbnail-fallback" style={{ display: (video.thumbnail && !video.thumbnail.startsWith('data:image')) ? 'none' : 'flex' }}>
+                  <div className="thumbnail-fallback" style={{ display: video.thumbnail ? 'none' : 'flex' }}>
                     <div className="fallback-inner">
                       <Video size={48} style={{ color: '#475569', opacity: 0.4 }} />
                       <span className="fallback-text">미리보기 준비 중</span>

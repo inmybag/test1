@@ -9,29 +9,69 @@ async function recoverYouTube(videoId) {
   return `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`;
 }
 
+async function captureElementAsBase64(page, selector) {
+  try {
+    const element = await page.$(selector);
+    if (!element) return null;
+    
+    // Ensure element is visible
+    await element.scrollIntoViewIfNeeded();
+    await new Promise(r => setTimeout(r, 500));
+    
+    const base64 = await element.screenshot({ encoding: 'base64' });
+    return `data:image/png;base64,${base64}`;
+  } catch (error) {
+    console.error(`      ⚠️ Screenshot failed: ${error.message}`);
+    return null;
+  }
+}
+
 async function fetchFreshThumbnail(browser, url, platform) {
   const page = await browser.newPage();
   try {
+    // Set a larger viewport to ensure image is not clipped
+    await page.setViewport({ width: 1280, height: 1200 });
     await page.setUserAgent('Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36');
-    await page.goto(url, { waitUntil: 'networkidle2', timeout: 30000 });
     
-    // Scroll a bit to trigger lazy loading
-    await page.evaluate(() => window.scrollBy(0, 300));
+    console.log(`    🔍 Visiting: ${url}`);
+    const response = await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 35000 });
+    
+    if (!response || response.status() >= 400) {
+      console.error(`    ⚠️ Received status ${response ? response.status() : 'null'}`);
+      return null;
+    }
+
+    await new Promise(r => setTimeout(r, 6000));
+    await page.evaluate(() => window.scrollBy(0, 500));
     await new Promise(r => setTimeout(r, 2000));
 
-    const thumbnail = await page.evaluate((plat) => {
-      if (plat === 'tiktok') {
-        const img = document.querySelector('img[src*="tiktokcdn"]');
-        return img ? img.src : null;
-      }
-      if (plat === 'instagram') {
-        const img = document.querySelector('img[src*="cdninstagram"]');
-        return img ? img.src : null;
+    const bestSelector = await page.evaluate((plat) => {
+      const imgs = Array.from(document.querySelectorAll('img'));
+      const platformCdn = plat === 'tiktok' ? 'tiktokcdn' : 'cdninstagram';
+      
+      const valid = imgs.map((img, idx) => {
+        const src = img.src || '';
+        const isCdn = src.includes(platformCdn);
+        const isLarge = img.width > 120 && img.height > 120;
+        return { idx, isCdn, isLarge, score: (isCdn ? 10 : 0) + (isLarge ? 5 : 0) };
+      }).filter(v => v.score > 0);
+
+      if (valid.length > 0) {
+        valid.sort((a, b) => b.score - a.score);
+        const best = imgs[valid[0].idx];
+        // Give it a temporary ID to find it from node
+        best.id = 'target-thumb-' + Date.now();
+        return '#' + best.id;
       }
       return null;
     }, platform);
 
-    return thumbnail;
+    if (bestSelector) {
+      console.log(`    📸 Capturing element screenshot...`);
+      return await captureElementAsBase64(page, bestSelector);
+    }
+
+    return thumbUrl;
   } catch (error) {
     console.error(`    ❌ Failed to fetch for ${url}: ${error.message}`);
     return null;

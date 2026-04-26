@@ -789,13 +789,51 @@ async function main() {
         console.log(`  [Amazon] ${processedCount}건 처리됨 (수집: ${allReviews.length}건)`);
 
         if (reachedCutoff) break;
-
-        const hasMore = await page.$('[data-hook="show-more-button"]');
-        if (!hasMore) break;
-        await page.evaluate(() => document.querySelector('[data-hook="show-more-button"]').click());
-        await new Promise(r => setTimeout(r, 2500));
+        
         await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
         await new Promise(r => setTimeout(r, 1000));
+
+        let showMoreBtn = await page.$('[data-hook="show-more-button"]');
+        if (!showMoreBtn) showMoreBtn = await page.$('[data-hook="see-all-reviews-link-foot"]');
+        if (!showMoreBtn) showMoreBtn = await page.$('#ajax-show-more-reviews');
+        if (!showMoreBtn) showMoreBtn = await page.$('[data-action="reviews:ajax-post"]');
+
+        if (!showMoreBtn) {
+          showMoreBtn = await page.evaluateHandle(() => {
+            const elements = Array.from(document.querySelectorAll('a, span, button, div.a-button'));
+            const regex = /show\s+(\d+\s+)?more\s+reviews/i;
+            const regexSimple = /see\s+all\s+reviews/i;
+            return elements.find(el => {
+              const txt = (el.textContent || '').trim();
+              return regex.test(txt) || regexSimple.test(txt) || txt.toLowerCase().includes('show more');
+            });
+          });
+          if (showMoreBtn && !(await showMoreBtn.asElement())) {
+            showMoreBtn = null;
+          }
+        }
+
+        const nextButton = await page.$('.a-pagination .a-last:not(.a-disabled) a') || await page.$('[data-hook="pagination-button-next"]');
+
+        if (showMoreBtn) {
+          console.log('  [Amazon] "Show more" 형태 버튼 발견 및 클릭');
+          const btn = showMoreBtn.asElement() || showMoreBtn;
+          await btn.scrollIntoViewIfNeeded();
+          await btn.click();
+          await new Promise(r => setTimeout(r, 4000));
+          await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
+        } else if (nextButton) {
+          console.log('  [Amazon] 다음 페이지로 이동');
+          await Promise.all([
+            page.waitForNavigation({ waitUntil: 'networkidle2', timeout: 60000 }),
+            nextButton.click()
+          ]);
+          processedCount = 0;
+          await new Promise(r => setTimeout(r, 3000));
+        } else {
+          console.log('  [Amazon] 더 이상 페이지나 버튼을 찾을 수 없음');
+          break;
+        }
 
         iteration++;
       }

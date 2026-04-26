@@ -701,13 +701,52 @@ async function main() {
 
         if (reachedCutoff) break;
 
-        // "Show more" 버튼 클릭
-        const hasMore = await page.$('[data-hook="show-more-button"]');
-        if (!hasMore) break;
-        await page.evaluate(() => document.querySelector('[data-hook="show-more-button"]').click());
-        await new Promise(r => setTimeout(r, 2500));
+        // 다음 페이지 또는 "Show more" 처리
         await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
         await new Promise(r => setTimeout(r, 1000));
+
+        let showMoreBtn = await page.$('[data-hook="show-more-button"]');
+        if (!showMoreBtn) showMoreBtn = await page.$('[data-hook="see-all-reviews-link-foot"]');
+        if (!showMoreBtn) showMoreBtn = await page.$('#ajax-show-more-reviews');
+        if (!showMoreBtn) showMoreBtn = await page.$('[data-action="reviews:ajax-post"]');
+
+        // 정규식 기반 검색 강화 (대소문자 무시, 중간 숫자 무시)
+        if (!showMoreBtn) {
+          showMoreBtn = await page.evaluateHandle(() => {
+            const elements = Array.from(document.querySelectorAll('a, span, button, div.a-button'));
+            const regex = /show\s+(\d+\s+)?more\s+reviews/i;
+            const regexSimple = /see\s+all\s+reviews/i;
+            return elements.find(el => {
+              const txt = (el.textContent || '').trim();
+              return regex.test(txt) || regexSimple.test(txt) || txt.toLowerCase().includes('show more');
+            });
+          });
+          if (showMoreBtn && !(await showMoreBtn.asElement())) {
+            showMoreBtn = null;
+          }
+        }
+
+        const nextButton = await page.$('.a-pagination .a-last:not(.a-disabled) a') || await page.$('[data-hook="pagination-button-next"]');
+
+        if (showMoreBtn) {
+          console.log('  [Amazon] "Show more" 형태 버튼 발견 및 클릭');
+          const btn = showMoreBtn.asElement() || showMoreBtn;
+          await btn.scrollIntoViewIfNeeded();
+          await btn.click();
+          await new Promise(r => setTimeout(r, 4000)); // 로드 대기 시간 충분히
+          await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
+        } else if (nextButton) {
+          console.log('  [Amazon] 다음 페이지로 이동');
+          await Promise.all([
+            page.waitForNavigation({ waitUntil: 'networkidle2', timeout: 60000 }),
+            nextButton.click()
+          ]);
+          processedCount = 0; 
+          await new Promise(r => setTimeout(r, 3000));
+        } else {
+          console.log('  [Amazon] 더 이상 페이지나 버튼을 찾을 수 없음');
+          break;
+        }
 
         iteration++;
       }
@@ -724,11 +763,11 @@ async function main() {
       let totalSaved = 0;
       for (let i = 0; i < allCollectedReviews.length; i += batchSize) {
         const batch = allCollectedReviews.slice(i, i + batchSize);
-        console.log(`  [Claude] ${i + 1}~${Math.min(i + batchSize, allCollectedReviews.length)} 분석 중...`);
+        console.log(`  [Gemini] ${i + 1}~${Math.min(i + batchSize, allCollectedReviews.length)} 분석 중...`);
         const savedCount = await analyzeAndSaveBatch(product.id, batch, product.platform);
         totalSaved += savedCount;
         console.log(`  [DB] ${totalSaved} / ${allCollectedReviews.length} 저장 완료`);
-        // Claude 속도 제한 방지를 위한 지연
+        // Gemini 속도 제한 방지를 위한 지연
         await new Promise(r => setTimeout(r, 3000));
       }
     }
