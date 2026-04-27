@@ -609,7 +609,7 @@ export default function ReviewAnalysisPage() {
                 </div>
                 <div className="ra-dash-stat">
                   <span className="ra-dash-number">{total.toLocaleString()}</span>
-                  <span className="ra-dash-label">신규 리뷰수</span>
+                  <span className="ra-dash-label">기간 내 리뷰</span>
                 </div>
                 <div className="ra-dash-mini-stats">
                   <span className="today">오늘 <strong>{todayCount}</strong></span>
@@ -1156,7 +1156,7 @@ export default function ReviewAnalysisPage() {
                      </div>
                      <div className="ra-dash-stat" style={{ marginTop: '1rem' }}>
                        <span className="ra-dash-number" style={{ fontSize: '1.8rem' }}>{total.toLocaleString()}</span>
-                       <span className="ra-dash-label">신규 리뷰수</span>
+                       <span className="ra-dash-label">기간 내 리뷰</span>
                        <span className={`ra-dash-growth ${dash.growthRate >= 0 ? 'positive' : 'negative'}`} style={{ marginLeft: 'auto' }}>{dash.growthRate >= 0 ? '↑' : '↓'} {Math.abs(dash.growthRate)}%</span>
                      </div>
                    </div>
