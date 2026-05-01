@@ -177,7 +177,7 @@ export async function getRankingHistory(productId, dateStr, days = 30, title = '
     const { rows } = await sql`
       SELECT date_str as "dateStr", rank, price 
       FROM rankings 
-      WHERE product_id = ${productId}
+      WHERE product_id = ${productId} AND date_str <= ${dateStr}
       ORDER BY date_str DESC 
       LIMIT ${days};
     `;

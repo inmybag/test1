@@ -108,6 +108,7 @@ export default function Home() {
         onClose={() => setModalOpen(false)} 
         title={selectedTitle} 
         history={history}
+        selectedDateStr={date.replace(/-/g, '')}
       />
     </main>
   );

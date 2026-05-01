@@ -6,7 +6,7 @@ import { X } from 'lucide-react';
 
 Chart.register(...registerables);
 
-export default function ChartModal({ title, isOpen, onClose, history }) {
+export default function ChartModal({ title, isOpen, onClose, history, selectedDateStr }) {
   const chartRef = useRef(null);
   const chartInstance = useRef(null);
 
@@ -17,12 +17,28 @@ export default function ChartModal({ title, isOpen, onClose, history }) {
       }
 
       const ctx = chartRef.current.getContext('2d');
-      // 최근 30일 날짜 배열 생성 (KST 기준)
-      const now = new Date();
+      
+      // 선택된 날짜 기준으로 최근 30일 날짜 배열 생성
+      let baseDate = new Date();
+      if (selectedDateStr && selectedDateStr.length === 8) {
+        const y = selectedDateStr.substring(0, 4);
+        const m = selectedDateStr.substring(4, 6);
+        const d = selectedDateStr.substring(6, 8);
+        baseDate = new Date(`${y}-${m}-${d}T12:00:00+09:00`);
+      } else if (history.length > 0) {
+        // Fallback to latest history date
+        const latestStr = history[0].dateStr;
+        if (latestStr && latestStr.length === 8) {
+          const y = latestStr.substring(0, 4);
+          const m = latestStr.substring(4, 6);
+          const d = latestStr.substring(6, 8);
+          baseDate = new Date(`${y}-${m}-${d}T12:00:00+09:00`);
+        }
+      }
+
       const dates = [];
       for (let i = 29; i >= 0; i--) {
-        const d = new Date(now.getTime() - (i * 24 * 60 * 60 * 1000));
-        // KST 보정 (서버/브라우저 환경에 따라 다를 수 있으나 간단히 YYYYMMDD 변환용)
+        const d = new Date(baseDate.getTime() - (i * 24 * 60 * 60 * 1000));
         const dateStr = d.toLocaleDateString('en-CA', { timeZone: 'Asia/Seoul' }).replace(/-/g, '');
         dates.push(dateStr);
       }
