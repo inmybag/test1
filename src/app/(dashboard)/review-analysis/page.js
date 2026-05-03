@@ -57,6 +57,7 @@ export default function ReviewAnalysisPage() {
   const [products, setProducts] = useState([]);
   const [selectedProducts, setSelectedProducts] = useState([]);
   const [showProductDropdown, setShowProductDropdown] = useState(false);
+  const [selectedBrandFilter, setSelectedBrandFilter] = useState('전체');
   const [showUrlManager, setShowUrlManager] = useState(false);
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
@@ -1433,13 +1434,25 @@ export default function ReviewAnalysisPage() {
         </div>
 
         <div className="ra-product-selector" style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap', alignItems: 'flex-start' }} ref={dropdownRef}>
+          <select 
+            value={selectedBrandFilter} 
+            onChange={(e) => setSelectedBrandFilter(e.target.value)}
+            className="ra-dropdown-trigger glass-panel"
+            style={{ paddingRight: '2.5rem', appearance: 'none', minWidth: '160px', color: '#fff', cursor: 'pointer', backgroundImage: 'url("data:image/svg+xml;charset=UTF-8,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' viewBox=\'0 0 24 24\' fill=\'none\' stroke=\'white\' stroke-width=\'2\' stroke-linecap=\'round\' stroke-linejoin=\'round\'%3E%3Cpolyline points=\'6 9 12 15 18 9\'%3E%3C/polyline%3E%3C/svg%3E")', backgroundRepeat: 'no-repeat', backgroundPosition: 'right 1rem center', backgroundSize: '1.2em' }}
+          >
+            <option value="전체" style={{ color: '#000' }}>전체 브랜드</option>
+            {[...new Set(products.map(p => p.brandName))].filter(Boolean).sort().map(brand => (
+              <option key={brand} value={brand} style={{ color: '#000' }}>{brand}</option>
+            ))}
+          </select>
+
           <div style={{ position: 'relative' }}>
             <button className="ra-dropdown-trigger glass-panel" onClick={() => setShowProductDropdown(!showProductDropdown)}>
               {selectedProducts.length > 0 ? `${selectedProducts.length}개 제품 선택됨` : '제품 선택'} <ChevronDown size={18} />
             </button>
             {showProductDropdown && (
               <div className="ra-dropdown-menu glass-panel">
-                {products.map(p => {
+                {products.filter(p => selectedBrandFilter === '전체' || p.brandName === selectedBrandFilter).map(p => {
                   const isChecked = selectedProducts.includes(p.id);
                   const meta = PLATFORM_META[p.platform] || PLATFORM_META.default;
                   return (
