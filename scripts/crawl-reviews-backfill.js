@@ -28,7 +28,7 @@ function getDateDaysAgo(days) {
   return d.toISOString().split('T')[0];
 }
 
-const CUTOFF_DATE = getDateDaysAgo(30);
+const CUTOFF_DATE = '2025-01-01';
 console.log(`[백필] 수집 기준: ${CUTOFF_DATE} 이후 리뷰`);
 
 function parseOliveDate(dateStr) {
@@ -254,7 +254,7 @@ JSON 배열로만 응답. 코드블록 없이:
             ${JSON.stringify(r.extra_info || {})}, ${JSON.stringify(r.media_urls || [])},
             ${r.sentiment}, ${r.sentiment_score}, ${JSON.stringify(r.attributes || [])}, ${JSON.stringify(r.source_highlight || [])}
           )
-          ON CONFLICT (product_id, COALESCE(reviewer_nickname, ''), review_date)
+          ON CONFLICT (product_id, review_date, COALESCE(reviewer_nickname, ''), LEFT(COALESCE(extra_info->>'originalText', review_text, ''), 100))
           DO UPDATE SET 
             media_urls = EXCLUDED.media_urls,
             extra_info = EXCLUDED.extra_info,

@@ -163,7 +163,11 @@ async function fetchTikTok(browser, keyword_en, keyword_ko, category, count) {
     console.log(`  ❌ TikTok 수집 실패 (${keyword_ko}): ${error.message}`);
     return [];
   } finally {
-    await page.close();
+    try {
+      if (!page.isClosed()) await page.close();
+    } catch (e) {
+      // 무시
+    }
   }
 }
 
@@ -229,7 +233,11 @@ async function fetchInstagram(browser, keyword_en, keyword_ko, category, count) 
     console.log(`  ❌ Instagram 수집 실패 (${keyword_ko}): ${error.message}`);
     return [];
   } finally {
-    await page.close();
+    try {
+      if (!page.isClosed()) await page.close();
+    } catch (e) {
+      // 무시
+    }
   }
 }
 

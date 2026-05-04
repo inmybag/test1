@@ -41,6 +41,8 @@ echo "[$(date)] 4단계: 제품 리뷰 크롤링 및 AI 감성분석 시작 (cra
 echo "[$(date)] 5단계: 미분석 리뷰 재분석 시작 (re-analyze-reviews.js)..." >> $LOG_FILE
 /usr/local/bin/node scripts/re-analyze-reviews.js >> $LOG_FILE 2>&1
 
+echo "[$(date)] 6단계: 분석 완료 요약 리포트 슬랙 발송 시작 (send-slack-summary.js)..." >> $LOG_FILE
+/usr/local/bin/node scripts/send-slack-summary.js >> $LOG_FILE 2>&1
+
 echo "[$(date)] --- 종료: 전체 분석 완료 ---" >> $LOG_FILE
 echo "" >> $LOG_FILE
-

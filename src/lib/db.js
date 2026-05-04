@@ -90,8 +90,8 @@ export async function initDb() {
 
     // product_reviews에 unique 인덱스 추가 (중복 방지)
     await sql`
-      CREATE UNIQUE INDEX IF NOT EXISTS idx_review_unique
-      ON product_reviews(product_id, review_date, COALESCE(reviewer_nickname, ''), LEFT(COALESCE(review_text, ''), 100));
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_review_unique 
+      ON product_reviews(product_id, review_date, COALESCE(reviewer_nickname, ''), LEFT(COALESCE(extra_info->>'originalText', review_text, ''), 100));
     `;
 
     // AI 마케팅 리포트 캐시 테이블
@@ -451,7 +451,7 @@ export async function saveProductReviews(reviews) {
           ${r.sentiment}, ${r.sentiment_score}, ${JSON.stringify(r.attributes || [])},
           ${JSON.stringify(r.source_highlight || [])}
         )
-        ON CONFLICT (product_id, review_date, COALESCE(reviewer_nickname, ''), LEFT(COALESCE(review_text, ''), 100))
+        ON CONFLICT (product_id, review_date, COALESCE(reviewer_nickname, ''), LEFT(COALESCE(extra_info->>'originalText', review_text, ''), 100))
         DO UPDATE SET 
           media_urls = EXCLUDED.media_urls,
           extra_info = EXCLUDED.extra_info,
