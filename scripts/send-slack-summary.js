@@ -59,6 +59,46 @@ async function sendSlackSummary() {
       ? `[${topVideo.platform}] ${topVideo.title.substring(0, 35)}... (${parseInt(topVideo.view_count).toLocaleString()}회)`
       : '오늘 수집된 영상 없음';
 
+    // 6. 제품별 수집된 리뷰 건수
+    const productReviewRes = await sql`
+      SELECT rp.product_name, count(pr.id) as count 
+      FROM product_reviews pr 
+      JOIN review_products rp ON pr.product_id = rp.id 
+      WHERE pr.created_at >= CURRENT_DATE 
+      GROUP BY rp.product_name 
+      ORDER BY count DESC
+    `;
+    const productReviewText = productReviewRes.rows.map(row => `• ${row.product_name}: ${row.count}건`).join('\n') || '오늘 수집된 리뷰 없음';
+
+    // 7. 네이버 쇼핑 급상승 키워드 (전주대비 50계단 이상)
+    const naverRes = await sql`
+      SELECT t1.keyword, t1.category, t1.rank as current_rank, t2.rank as previous_rank, (t2.rank - t1.rank) as rank_diff 
+      FROM shopping_insight_keywords t1 
+      JOIN shopping_insight_keywords t2 
+        ON t1.keyword = t2.keyword AND t1.category = t2.category 
+        AND t2.date_str = to_char(CURRENT_DATE - interval '7 days', 'YYYYMMDD') 
+      WHERE t1.date_str = to_char(CURRENT_DATE, 'YYYYMMDD') 
+        AND (t2.rank - t1.rank) >= 50 
+      ORDER BY rank_diff DESC 
+      LIMIT 5
+    `;
+    const naverKeywordsText = naverRes.rows.map(row => `• ${row.keyword} (+${row.rank_diff}계단, 현재 ${row.current_rank}위)`).join('\n') || '급상승 키워드 없음';
+
+    // 8. 올리브영 신규 차트인 랭킹 (전일대비)
+    const oliveRes = await sql`
+      SELECT r1.brand, r1.title, r1.rank 
+      FROM rankings r1 
+      WHERE r1.date_str = to_char(CURRENT_DATE, 'YYYYMMDD') 
+        AND NOT EXISTS ( 
+          SELECT 1 FROM rankings r2 
+          WHERE r2.date_str = to_char(CURRENT_DATE - interval '1 day', 'YYYYMMDD') 
+            AND r2.product_id = r1.product_id 
+        ) 
+      ORDER BY r1.rank ASC 
+      LIMIT 5
+    `;
+    const oliveRankingText = oliveRes.rows.map(row => `• [${row.brand}] ${row.title.substring(0, 25)}... (현재 ${row.rank}위)`).join('\n') || '신규 진입 없음';
+
     const payload = {
       text: `📊 *일일 배치 분석 작업 완료 알림* (${todayKst})`,
       blocks: [
@@ -109,6 +149,36 @@ async function sendSlackSummary() {
           text: {
             type: "mrkdwn",
             text: `*📈 주요 데이터 성과 분석*\n• *신규 수집 리뷰 긍정률:* ${posRate}% (분석된 ${totalSentiment}건 중 ${posCount}건 긍정)\n• *오늘의 최고 조회수 숏폼:*\n> ${topVideoText}`
+          }
+        },
+        {
+          type: "divider"
+        },
+        {
+          type: "section",
+          text: {
+            type: "mrkdwn",
+            text: `*📊 제품별 수집된 리뷰 건수*\n${productReviewText}`
+          }
+        },
+        {
+          type: "divider"
+        },
+        {
+          type: "section",
+          text: {
+            type: "mrkdwn",
+            text: `*🚀 네이버 쇼핑 급상승 키워드 (전주대비 50계단+)*\n${naverKeywordsText}`
+          }
+        },
+        {
+          type: "divider"
+        },
+        {
+          type: "section",
+          text: {
+            type: "mrkdwn",
+            text: `*👑 올리브영 신규 차트인 랭킹 (전일대비)*\n${oliveRankingText}`
           }
         },
         {
