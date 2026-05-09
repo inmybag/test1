@@ -1,4 +1,6 @@
 const { sql } = require('@vercel/postgres');
+const fs = require('fs');
+const path = require('path');
 require('dotenv').config({ path: '.env.local' });
 
 async function sendSlackSummary() {
@@ -12,6 +14,15 @@ async function sendSlackSummary() {
   const kstDate = new Date(now.toLocaleString('en-US', { timeZone: 'Asia/Seoul' }));
   const day = kstDate.getDay();
   const yyyymmdd = kstDate.toISOString().split('T')[0];
+
+  const lastSentFile = path.join(__dirname, 'slack_last_sent.txt');
+  if (fs.existsSync(lastSentFile)) {
+    const lastSentDate = fs.readFileSync(lastSentFile, 'utf8').trim();
+    if (lastSentDate === yyyymmdd) {
+      console.log(`오늘(${yyyymmdd}) 이미 슬랙 알림이 발송되어 생략합니다.`);
+      process.exit(0);
+    }
+  }
 
   // 2026년 기준 한국 법정 공휴일
   const holidays2026 = [
@@ -52,23 +63,30 @@ async function sendSlackSummary() {
     const totalSentiment = posCount + negCount + neuCount;
     const posRate = totalSentiment > 0 ? Math.round((posCount / totalSentiment) * 100) : 0;
 
-    // 5. 오늘 수집된 최고 조회수 영상
-    const topVideoRes = await sql`SELECT title, platform, view_count FROM video_analyses WHERE created_at >= CURRENT_DATE ORDER BY view_count DESC LIMIT 1`;
-    const topVideo = topVideoRes.rows[0];
-    const topVideoText = topVideo 
-      ? `[${topVideo.platform}] ${topVideo.title.substring(0, 35)}... (${parseInt(topVideo.view_count).toLocaleString()}회)`
+    // 5. 오늘 수집된 상위 조회수 영상 (TOP 5)
+    const topVideoRes = await sql`SELECT title, platform, view_count, video_id, url FROM video_analyses WHERE created_at >= CURRENT_DATE ORDER BY view_count DESC LIMIT 5`;
+    const topVideos = topVideoRes.rows;
+    const BASE_URL = 'https://test1-lime-sigma.vercel.app';
+    const topVideoText = topVideos.length > 0
+      ? topVideos.map((v, i) => {
+          const dashboardLink = `${BASE_URL}/analysis?videoId=${encodeURIComponent(v.video_id)}`;
+          return `${i + 1}. [${v.platform}] <${dashboardLink}|${v.title.substring(0, 30)}...> (${parseInt(v.view_count).toLocaleString()}회)`;
+        }).join('\n')
       : '오늘 수집된 영상 없음';
 
-    // 6. 제품별 수집된 리뷰 건수
+    // 6. 제품별 수집된 리뷰 건수 (플랫폼, 브랜드명, 제품명 포함)
     const productReviewRes = await sql`
-      SELECT rp.product_name, count(pr.id) as count 
+      SELECT rp.platform, rp.brand_name, rp.product_name, count(pr.id) as count 
       FROM product_reviews pr 
       JOIN review_products rp ON pr.product_id = rp.id 
       WHERE pr.created_at >= CURRENT_DATE 
-      GROUP BY rp.product_name 
+      GROUP BY rp.platform, rp.brand_name, rp.product_name 
       ORDER BY count DESC
     `;
-    const productReviewText = productReviewRes.rows.map(row => `• ${row.product_name}: ${row.count}건`).join('\n') || '오늘 수집된 리뷰 없음';
+    const platformLabel = (p) => ({ oliveyoung: '올리브영', naver: '네이버', musinsa: '무신사', amazon: '아마존', cafe24: '카페24' }[p] || p);
+    const productReviewText = productReviewRes.rows.map(row =>
+      `• [${platformLabel(row.platform)}] ${row.brand_name} | ${row.product_name}: ${row.count}건`
+    ).join('\n') || '오늘 수집된 리뷰 없음';
 
     // 7. 네이버 쇼핑 급상승 키워드 (전주대비 50계단 이상)
     const naverRes = await sql`
@@ -84,9 +102,9 @@ async function sendSlackSummary() {
     `;
     const naverKeywordsText = naverRes.rows.map(row => `• ${row.keyword} (+${row.rank_diff}계단, 현재 ${row.current_rank}위)`).join('\n') || '급상승 키워드 없음';
 
-    // 8. 올리브영 신규 차트인 랭킹 (전일대비)
+    // 8. 올리브영 신규 차트인 랭킹 (전일대비, 상품 링크 포함)
     const oliveRes = await sql`
-      SELECT r1.brand, r1.title, r1.rank 
+      SELECT r1.brand, r1.title, r1.rank, r1.product_id 
       FROM rankings r1 
       WHERE r1.date_str = to_char(CURRENT_DATE, 'YYYYMMDD') 
         AND NOT EXISTS ( 
@@ -97,7 +115,15 @@ async function sendSlackSummary() {
       ORDER BY r1.rank ASC 
       LIMIT 5
     `;
-    const oliveRankingText = oliveRes.rows.map(row => `• [${row.brand}] ${row.title.substring(0, 25)}... (현재 ${row.rank}위)`).join('\n') || '신규 진입 없음';
+    const oliveRankingText = oliveRes.rows.map(row => {
+      const productLink = row.product_id
+        ? `https://www.oliveyoung.co.kr/store/goods/getGoodsDetail.do?goodsNo=${row.product_id}`
+        : null;
+      const titleShort = row.title.substring(0, 22);
+      return productLink
+        ? `• [${row.brand}] <${productLink}|${titleShort}...> (현재 ${row.rank}위)`
+        : `• [${row.brand}] ${titleShort}... (현재 ${row.rank}위)`;
+    }).join('\n') || '신규 진입 없음';
 
     const payload = {
       text: `📊 *일일 배치 분석 작업 완료 알림* (${todayKst})`,
@@ -148,7 +174,7 @@ async function sendSlackSummary() {
           type: "section",
           text: {
             type: "mrkdwn",
-            text: `*📈 주요 데이터 성과 분석*\n• *신규 수집 리뷰 긍정률:* ${posRate}% (분석된 ${totalSentiment}건 중 ${posCount}건 긍정)\n• *오늘의 최고 조회수 숏폼:*\n> ${topVideoText}`
+            text: `*📈 주요 데이터 성과 분석*\n• *신규 수집 리뷰 긍정률:* ${posRate}% (분석된 ${totalSentiment}건 중 ${posCount}건 긍정)\n\n*📱 오늘의 인기 숏폼 TOP 5 (클릭 시 상세 분석 화면)*\n${topVideoText}`
           }
         },
         {
@@ -204,6 +230,7 @@ async function sendSlackSummary() {
 
     if (response.ok) {
       console.log('✅ 슬랙 알림 전송 성공');
+      fs.writeFileSync(lastSentFile, yyyymmdd, 'utf8');
     } else {
       console.error('❌ 슬랙 알림 전송 실패:', await response.text());
     }

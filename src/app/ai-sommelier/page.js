@@ -1,19 +1,35 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import './sommelier.css';
+
+const EXAMPLE_POOL = [
+  "비 오는 날 어울리는 차분한 우디향",
+  "포근한 비누향이 나는 깨끗한 느낌",
+  "상큼한 시트러스로 기분 전환하고 싶어요",
+  "미모사처럼 화사하고 포근한 꽃내음",
+  "퇴근 후 혼자만의 시간에 어울리는 향",
+  "중요한 미팅 전, 신뢰감을 주는 향",
+  "첫 데이트에서 설레는 분위기를 연출하고 싶을 때",
+  "이른 아침 숲속을 걷는 듯한 싱그러움",
+  "포근한 이불 속에서 느껴지는 머스크향",
+  "달콤한 무화과와 코코넛의 이국적인 조화",
+  "새벽 안개가 낀 장미 정원의 우아함",
+  "따뜻한 차 한 잔과 어울리는 고요한 향",
+  "여름 바다의 시원함이 느껴지는 소금기와 앰버",
+  "오렌지 나무 아래서 느끼는 상큼하고 달콤한 휴식"
+];
 
 export default function AISommelier() {
   const [prompt, setPrompt] = useState('');
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState('');
+  const [examples, setExamples] = useState([]);
 
-  const examples = [
-    "비 오는 날 어울리는 차분한 우디향",
-    "포근한 비누향이 나는 깨끗한 느낌",
-    "상큼한 시트러스로 기분 전환하고 싶어요",
-    "미모사처럼 화사하고 포근한 꽃내음"
-  ];
+  useEffect(() => {
+    const shuffled = [...EXAMPLE_POOL].sort(() => 0.5 - Math.random());
+    setExamples(shuffled.slice(0, 4));
+  }, []);
 
   const handleRecommend = async (customPrompt) => {
     const targetPrompt = customPrompt || prompt;

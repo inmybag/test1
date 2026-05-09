@@ -3,9 +3,13 @@ import { sql } from '@vercel/postgres';
 // 로컬 환경에서도 에러가 나지 않도록 유연하게 처리합니다.
 const isProd = process.env.NODE_ENV === 'production' || process.env.POSTGRES_URL;
 
+let isDbInitialized = false;
+
 export async function initDb() {
-  if (!isProd) return;
+  if (!isProd || isDbInitialized) return;
+  
   try {
+    // 기본적인 테이블 생성
     await sql`
       CREATE TABLE IF NOT EXISTS rankings (
         id SERIAL PRIMARY KEY,
@@ -19,12 +23,7 @@ export async function initDb() {
         UNIQUE(date_str, rank)
       );
     `;
-    // Add product_id column if it doesn't exist
-    await sql`
-      ALTER TABLE rankings ADD COLUMN IF NOT EXISTS product_id TEXT;
-    `;
 
-    // Add video_analyses table with unique(video_id)
     await sql`
       CREATE TABLE IF NOT EXISTS video_analyses (
         id SERIAL PRIMARY KEY,
@@ -47,14 +46,18 @@ export async function initDb() {
       );
     `;
 
-    // Ensure all columns exist for video_analyses (Migration)
-    await sql`ALTER TABLE video_analyses ADD COLUMN IF NOT EXISTS view_count BIGINT DEFAULT 0;`;
-    await sql`ALTER TABLE video_analyses ADD COLUMN IF NOT EXISTS like_count INT DEFAULT 0;`;
-    await sql`ALTER TABLE video_analyses ADD COLUMN IF NOT EXISTS comment_count INT DEFAULT 0;`;
-    await sql`ALTER TABLE video_analyses ADD COLUMN IF NOT EXISTS description TEXT;`;
-    await sql`ALTER TABLE video_analyses ADD COLUMN IF NOT EXISTS comments JSONB DEFAULT '[]';`;
-    await sql`ALTER TABLE video_analyses ADD COLUMN IF NOT EXISTS notion_url TEXT;`;
-    await sql`ALTER TABLE video_analyses ADD COLUMN IF NOT EXISTS is_sent_to_notion BOOLEAN DEFAULT FALSE;`;
+    // 마이그레이션용 컬럼 추가 (필요한 경우에만)
+    // 이 작업은 부하가 있을 수 있으므로 실제 서비스 초기화 시에만 실행되도록 함
+    await Promise.all([
+      sql`ALTER TABLE rankings ADD COLUMN IF NOT EXISTS product_id TEXT;`,
+      sql`ALTER TABLE video_analyses ADD COLUMN IF NOT EXISTS view_count BIGINT DEFAULT 0;`,
+      sql`ALTER TABLE video_analyses ADD COLUMN IF NOT EXISTS like_count INT DEFAULT 0;`,
+      sql`ALTER TABLE video_analyses ADD COLUMN IF NOT EXISTS comment_count INT DEFAULT 0;`,
+      sql`ALTER TABLE video_analyses ADD COLUMN IF NOT EXISTS description TEXT;`,
+      sql`ALTER TABLE video_analyses ADD COLUMN IF NOT EXISTS comments JSONB DEFAULT '[]';`,
+      sql`ALTER TABLE video_analyses ADD COLUMN IF NOT EXISTS notion_url TEXT;`,
+      sql`ALTER TABLE video_analyses ADD COLUMN IF NOT EXISTS is_sent_to_notion BOOLEAN DEFAULT FALSE;`
+    ]).catch(e => console.warn('Migration warnings (non-critical):', e.message));
 
     // 리뷰 분석용 테이블
     await sql`
@@ -88,13 +91,12 @@ export async function initDb() {
       );
     `;
 
-    // product_reviews에 unique 인덱스 추가 (중복 방지)
+    // 인덱스는 테이블 생성 시 한 번만 생성되도록 시도
     await sql`
       CREATE UNIQUE INDEX IF NOT EXISTS idx_review_unique 
       ON product_reviews(product_id, review_date, COALESCE(reviewer_nickname, ''), LEFT(COALESCE(extra_info->>'originalText', review_text, ''), 100));
     `;
 
-    // AI 마케팅 리포트 캐시 테이블
     await sql`
       CREATE TABLE IF NOT EXISTS marketing_reports (
         id SERIAL PRIMARY KEY,
@@ -108,7 +110,8 @@ export async function initDb() {
       );
     `;
 
-    console.log('Database initialized and migrated successfully.');
+    isDbInitialized = true;
+    console.log('Database initialized successfully.');
   } catch (error) {
     console.error('Failed to initialize database:', error);
   }

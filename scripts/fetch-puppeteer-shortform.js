@@ -37,10 +37,12 @@ const COUNTS = {
 function parseMetric(text) {
   if (!text) return 0;
   const clean = text.replace(/[^0-9.KMBm]/g, '').toUpperCase();
-  if (clean.includes('M')) return parseFloat(clean) * 1000000;
-  if (clean.includes('K')) return parseFloat(clean) * 1000;
-  if (clean.includes('B')) return parseFloat(clean) * 1000000000;
-  return parseFloat(clean) || 0;
+  let val = 0;
+  if (clean.includes('M')) val = parseFloat(clean) * 1000000;
+  else if (clean.includes('K')) val = parseFloat(clean) * 1000;
+  else if (clean.includes('B')) val = parseFloat(clean) * 1000000000;
+  else val = parseFloat(clean) || 0;
+  return Math.round(val);
 }
 
 // 인게이지먼트 점수 산출: (좋아요x10) + (댓글x50) + (조회수x0.05)
@@ -79,7 +81,8 @@ async function saveToDb(dateStr, videos) {
           view_count = EXCLUDED.view_count,
           like_count = EXCLUDED.like_count,
           comment_count = EXCLUDED.comment_count,
-          description = EXCLUDED.description;
+          description = EXCLUDED.description,
+          date_str = EXCLUDED.date_str;
       `;
       saved++;
     }
@@ -102,6 +105,7 @@ async function captureElementAsBase64(page, element) {
     const base64 = await element.screenshot({ encoding: 'base64' });
     return `data:image/png;base64,${base64}`;
   } catch (error) {
+    console.log(`      ⚠️ Screenshot 실패: ${error.message}`);
     return null;
   }
 }
@@ -111,28 +115,39 @@ async function fetchTikTok(browser, keyword_en, keyword_ko, category, count) {
   try {
     await page.setViewport({ width: 1280, height: 1000 });
     console.log(`  🔍 TikTok 검색 중: ${keyword_ko} (${keyword_en})`);
-    const q = encodeURIComponent(`${keyword_en} viral 2025`);
+    const q = encodeURIComponent(`${keyword_en}`);
     const url = `https://www.tiktok.com/search/video?q=${q}`;
     await page.goto(url, { waitUntil: 'networkidle2', timeout: 35000 });
     
-    await page.evaluate(() => window.scrollBy(0, 500));
-    await delay(3000);
+    await page.waitForSelector('div[data-e2e="search_video-item"]', { timeout: 10000 }).catch(() => {});
+    
+    // 여러 번 스크롤하여 결과 확보
+    for(let i=0; i<3; i++) {
+        await page.evaluate(() => window.scrollBy(0, 1000));
+        await delay(1500);
+    }
     
     const elements = await page.$$('div[data-e2e="search_video-item"], div[class*="DivVideoItem"]');
+    
+    if (elements.length === 0) {
+        const title = await page.title();
+        console.log(`      ⚠️ 요소를 찾지 못함 (페이지 제목: ${title})`);
+    }
+    
     const videos = [];
 
     for (let i = 0; i < elements.length && videos.length < count; i++) {
         const el = elements[i];
-        const videoData = await el.evaluate((category) => {
-            const aTag = document.querySelector('a[href*="/video/"]');
+        const videoData = await el.evaluate((element) => {
+            const aTag = element.querySelector('a[href*="/video/"]');
             if (!aTag) return null;
             const url = aTag.href;
             const video_id = url.split('/video/')[1]?.split('?')[0];
-            const titleEl = document.querySelector('div[data-e2e="search-card-video-caption"], .video-desc, .desc');
+            const titleEl = element.querySelector('div[data-e2e="search_video-item-desc"], div[data-e2e="search-card-video-caption"], .video-desc, .desc');
             const title = titleEl ? titleEl.innerText : "TikTok 벤치마킹 영상";
-            const viewEl = document.querySelector('strong[data-e2e="video-views"], .video-count, .views');
+            const viewEl = element.querySelector('strong[data-e2e="video-views"], .video-count, .views');
             return { video_id, url, title, viewText: viewEl ? viewEl.innerText : '0' };
-        }, category);
+        });
 
         if (!videoData || videos.some(v => v.video_id === videoData.video_id)) continue;
 
@@ -195,13 +210,6 @@ async function fetchInstagram(browser, keyword_en, keyword_ko, category, count) 
 
     for (let i = 0; i < elements.length && videos.length < count; i++) {
         const el = elements[i];
-        const videoData = await el.evaluate(() => {
-            const url = document.location.href; // This evaluate runs in the context of the link el? No, it's problematic.
-            // Simplified:
-            return { href: window.location.href }; // Wait, evaluate on element handles is tricky.
-        });
-        
-        // Re-evaluate to get href correctly
         const href = await page.evaluate(el => el.href, el);
         let type = href.includes('/reel/') ? '/reel/' : '/p/';
         let video_id = href.split(type)[1]?.split('/')[0];
