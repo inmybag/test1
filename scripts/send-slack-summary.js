@@ -13,7 +13,10 @@ async function sendSlackSummary() {
   const now = new Date();
   const kstDate = new Date(now.toLocaleString('en-US', { timeZone: 'Asia/Seoul' }));
   const day = kstDate.getDay();
-  const yyyymmdd = kstDate.toISOString().split('T')[0];
+  const yyyy = kstDate.getFullYear();
+  const mm = String(kstDate.getMonth() + 1).padStart(2, '0');
+  const dd = String(kstDate.getDate()).padStart(2, '0');
+  const yyyymmdd = `${yyyy}-${mm}-${dd}`;
 
   const lastSentFile = path.join(__dirname, 'slack_last_sent.txt');
   if (fs.existsSync(lastSentFile)) {
